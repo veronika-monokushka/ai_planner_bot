@@ -1,7 +1,7 @@
 # ИИ-Ежедневник
 
 
-> 💡 **Технологии**: Python + FastAPI + GigaChat/YandexGPT API/Mistral + SQLite/PostgreSQL
+> 💡 **Технологии**: Python + FastAPI + GigaChat/Mistral_AI + SQLite/PostgreSQL
 
 
 ## 🗂️ Структура папок
@@ -9,9 +9,10 @@
 ```
 ai_daily_planner_bot/
 ├── src/                    # Основной код
-│   ├── ai_agent/           # Промпты, логика нейросети, память
-│   ├── bot_core/           # Подключение к Telegram API, обработка команд
+│   ├── ai_agent/           # Промпты, логика нейросети
 │   ├── bot_food_plan/      # Функции питания/фитнеса (для будущего расширения)
+│   ├── bot_core.py         # Подключение к Telegram API, обработка команд
+
 # на будущее
 │   └── database/           # Модели базы данных
 ├── docs/                   # Документация проекта
