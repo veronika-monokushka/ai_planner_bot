@@ -1,16 +1,17 @@
-"""Сервис для генерации питания через AI"""
+# ai_agent/meals_generator.py
+
 import json
 from .llm_client import MistralAgent
 import asyncio
 import os
-
+from .fallback_answers import _fallback_plan, _fallback_shopping_list
 
 async def create_meal_plan_ai(
     goal: str,
     budget: int = None,
     daily_calories: int = 2000,
     language: str = "ru",
-    count_days = 7) -> dict:
+    count_days = 2) -> dict:
     """Генерирует план питания на неделю через Mistral AI"""
     
     agent = MistralAgent()
@@ -19,7 +20,7 @@ async def create_meal_plan_ai(
 Без объяснений, без комментариев, без markdown. Только JSON объект."""
     
     prompt = f"""
-Создай план питания на {count_days} дней (ПН,..).
+Создай план питания {count_days} вариантов (Вариант 1,..).
 
 Данные пользователя:
 - ЦЕЛЬ: {goal}
@@ -29,13 +30,13 @@ async def create_meal_plan_ai(
 
 ФОРМАТА ОТВЕТА (СТРОГО JSON БЕЗ КОММЕНТАРИЕВ):
 {{
-  "ПН": {{
+  "Вариант 1": {{
     "завтрак": "...",
     "обед": "...",
     "ужин": "...",
     "перекус": "..."
   }},
-  "ВТ": {{ ... }}
+  "Вариант 2": {{ ... }}
 }}
 """
     
@@ -54,7 +55,7 @@ async def create_meal_plan_ai(
             plan_data = json.loads(result["response"])
             
             # Валидация структуры
-            valid_days = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"]
+            valid_days = ["Вариант 1", "Вариант 2", "Вариант 3"]
             valid_days = valid_days[:count_days]
             if not all(day in plan_data for day in valid_days):
                 raise ValueError("Некорректная структура JSON")
@@ -70,7 +71,6 @@ async def create_meal_plan_ai(
             print(f"⚠️ Ошибка парсинга JSON: {e}")
             
             os.makedirs("logs", exist_ok=True)
-            # Сохраняем в файл
             with open("logs/error_ai_answers.txt", "w", encoding="utf-8") as f:
                 f.write(result['response'])
             return {
@@ -88,105 +88,90 @@ async def create_meal_plan_ai(
         }
 
 
+
 def generate_shopping_list_ai(plan: dict) -> dict:
-    """Генерирует список покупок из плана питания через AI"""
+    """Генерирует список покупок из плана питания через AI с разделением по вариантам"""
     
     agent = MistralAgent()
     
     plan_text = "\n".join([f"{day}: {meals}" for day, meals in plan.items()])
     
     prompt = f"""
-На основе этого плана питания создай готовый список покупок ТОЛЬКО в формате JSON массива.
+На основе этого плана питания создай список покупок ТОЛЬКО в формате JSON.
+Раздели продукты по вариантам меню.
 
 {plan_text}
 
 ФОРМАТ ОТВЕТА:
-[
-  {{"name": "Куриное филе", "quantity": "800 г"}},
-  {{"name": "Рис", "quantity": "500 г"}}
-]
+{{
+  "Вариант 1": [
+    {{"name": "Куриное филе", "quantity": "500 г"}},
+    {{"name": "Рис", "quantity": "300 г"}}
+  ],
+  "Вариант 2": [
+    {{"name": "Рыба", "quantity": "400 г"}},
+    {{"name": "Гречка", "quantity": "300 г"}}
+  ]
+}}
 
+Важно: каждый элемент должен быть объектом с полями "name" и "quantity".
 Без комментариев, только JSON."""
     
     try:
         result = agent.ask(prompt)
         
+        # ✅ Отладочный вывод
+        print(f"AI ответ для списка покупок: {result.get('response', '')[:500]}")
+        
         if result["success"]:
             try:
-                items = json.loads(result["response"])
-                return {"success": True, "items": items, "tokens": result.get("tokens", 0)}
-            except json.JSONDecodeError:
+                items_by_variant = json.loads(result["response"])
+                
+                # ✅ Выводим структуру для отладки
+                print(f"Распарсенный JSON: {items_by_variant}")
+                
+                # ✅ Валидируем и приводим к правильному формату
+                validated_items = {}
+                for variant, items in items_by_variant.items():
+                    if isinstance(items, list):
+                        validated_list = []
+                        for item in items:
+                            if isinstance(item, dict):
+                                validated_list.append({
+                                    "name": item.get("name", str(item)),
+                                    "quantity": item.get("quantity", "1 шт")
+                                })
+                            elif isinstance(item, str):
+                                validated_list.append({
+                                    "name": item,
+                                    "quantity": "1 шт"
+                                })
+                            else:
+                                validated_list.append({
+                                    "name": str(item),
+                                    "quantity": "1 шт"
+                                })
+                        validated_items[variant] = validated_list
+                    else:
+                        validated_items[variant] = [
+                            {"name": str(items), "quantity": "1 шт"}
+                        ]
+                
+                return {
+                    "success": True, 
+                    "items_by_variant": validated_items, 
+                    "tokens": result.get("tokens", 0)
+                }
+            except json.JSONDecodeError as e:
+                print(f"⚠️ Ошибка парсинга JSON: {e}")
+                print(f"Ответ AI: {result['response']}")
                 return _fallback_shopping_list(plan)
         else:
-            return {"success": False, "items": [], "error": result.get("error", "Ошибка API")}
+            return {"success": False, "items_by_variant": {}, "error": result.get("error", "Ошибка API")}
             
     except Exception as e:
-        return {"success": False, "items": [], "error": str(e)}
+        print(f"❌ Критическая ошибка: {e}")
+        return {"success": False, "items_by_variant": {}, "error": str(e)}
 
 
-def _fallback_plan(goal: str, daily_calories: int) -> dict:
-    """Бэкап-план если AI отказался отвечать или API недоступен"""
-    breakfasts = [
-        "Овсянка с ягодами", "Яичница с овощами", "Творог со сметаной",
-        "Гречка с молоком", "Сырники домашние", "Омлет классический"
-    ]
-    lunches = [
-        "Курица с гречкой", "Рыба запечённая", "Борщ постный", 
-        "Паста карбонара", "Овощное рагу", "Плов куриный", "Греческий салат"
-    ]
-    dinners = [
-        "Рыба на пару", "Куриное филе гриль", "Омлет белковый",
-        "Салат с тунцом", "Запеканка творожная", "Смузи зелёный"
-    ]
-    snacks = [
-        "Яблоко печёное", "Горсть орехов", "Греческий йогурт", "Банан"
-    ]
-    
-    plan = {}
-    days = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"]
-    
-    for i, day in enumerate(days):
-        plan[day] = {
-            "завтрак": breakfasts[i % len(breakfasts)],
-            "обед": lunches[i % len(lunches)],
-            "ужин": dinners[i % len(dinners)],
-            "перекус": snacks[i % len(snacks)]
-        }
-    
-    return plan
 
-
-def _fallback_shopping_list(plan: dict) -> dict:
-    """Бэкап-генератор списка покупок без AI"""
-    ingredients_db = {
-        "Овсянка с ягодами": [{"name": "Овсянка", "quantity": "500 г"}, {"name": "Ягоды", "quantity": "300 г"}],
-        "Яичница с овощами": [{"name": "Яйца", "quantity": "10 шт"}, {"name": "Овощи", "quantity": "500 г"}],
-        "Курица с гречкой": [{"name": "Куриное филе", "quantity": "800 г"}, {"name": "Гречка", "quantity": "500 г"}],
-    }
-    
-    aggregated = {}
-    
-    for day, meals in plan.items():
-        for meal_type, dish in meals.items():
-            for key, ingredients in ingredients_db.items():
-                if key.lower() in dish.lower():
-                    for ing in ingredients:
-                        name = ing["name"]
-                        if name in aggregated:
-                            aggregated[name] += f" + {ing['quantity']}"
-                        else:
-                            aggregated[name] = ing["quantity"]
-    
-    items = [{"name": name, "quantity": qty} for name, qty in aggregated.items()]
-    
-    if not items:
-        items = [
-            {"name": "Яйца", "quantity": "10 шт"},
-            {"name": "Куриное филе", "quantity": "800 г"},
-            {"name": "Гречка", "quantity": "500 г"},
-            {"name": "Рис", "quantity": "500 г"},
-            {"name": "Овощи", "quantity": "1 кг"},
-            {"name": "Фрукты", "quantity": "1 кг"}
-        ]
-    
-    return {"success": True, "items": items, "tokens": 0}

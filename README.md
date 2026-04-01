@@ -7,21 +7,80 @@
 ## 🗂️ Структура папок
 
 ```
-ai_daily_planner_bot/
-├── src/                    # Основной код
-│   ├── ai_agent/           # Промпты, логика нейросети
-│   ├── bot_food_plan/      # Функции питания/фитнеса (для будущего расширения)
-│   ├── bot_core.py         # Подключение к Telegram API, обработка команд
+ai_planner_bot/
+├── src/
+│   ├── bot.py                          # Главный файл запуска
+│   ├── bot_backend/
+│   │   ├── __init__.py
+│   │   ├── config.py                   # Конфигурация (токен, настройки)
+│   │   ├── states.py                   # Состояния ConversationHandler
+│   │   ├── keyboards.py                # Клавиатуры бота
+│   │   └── handlers/
+│   │       ├── __init__.py
+│   │       ├── common.py               # Навигация, главное меню
+│   │       ├── registration.py         # Регистрация пользователя
+│   │       ├── profile.py              # Профиль и его редактирование
+│   │       ├── nutrition.py            # Питание, план на неделю
+│   │       ├── recipes.py              # Рецепты (CRUD + поиск)
+│   │       ├── reminders.py            # Напоминания
+│   │       ├── weighing.py             # Взвешивание
+│   │       ├── shopping.py             # Список покупок
+│   │       └── utils.py                # Вспомогательные функции (recalculate_profile)
+│   ├── database/
+│   │   ├── __init__.py
+│   │   ├── connection.py               # Подключение к БД
+│   │   ├── users.py                    # Работа с пользователями
+│   │   ├── recipes.py                  # Работа с рецептами
+│   │   ├── meal_plans.py               # Работа с планами питания
+│   │   ├── shopping_lists.py           # Работа со списками покупок
+│   │   └── reminders.py                # Работа с напоминаниями
+│   └── ai_agent/
+│       ├── __init__.py
+│       ├── llm_client.py               # Клиент для Mistral AI
+│       ├── meals_generator.py          # Генерация планов питания через AI
+│       └── fallback_answers.py         # Fallback-планы и списки
 
-# на будущее
-│   └── database/           # Модели базы данных
-├── docs/                   # Документация проекта
-├── docker/                 # Docker-контейнеры
-├── .env/                   # (не коммитить!)
-├── .gitignore              # Скрытые файлы 
-├── README.md               # Этот файл
-├── pyproject.toml          # Конфигурация проекта (настройки зависимостей)
-└── requirements.txt        # Список библиотек (pip install)
+
+Идеал
+
+ai_planner_bot/
+├── src/
+│   ├── main.py                         # Точка входа (переименовать из bot.py)
+│   ├── bot_connection/
+│   │   ├── __init__.py
+│   │   ├── application.py              # Сборка Application (регистрация обработчиков)
+│   │   ├── config.py                   # Конфигурация
+│   │   ├── states.py                   # Состояния
+│   │   └── keyboards.py                # Клавиатуры - СТРАННО
+│   ├── handlers/
+│   │   ├── __init__.py
+│   │   ├── base.py                     # Базовый класс для обработчиков
+│   │   ├── navigation.py               # Навигация (бывший common.py)
+│   │   ├── registration.py             # Регистрация
+│   │   ├── profile.py                  # Профиль
+│   │   ├── nutrition.py                # Питание (только UI логика)
+│   │   ├── recipes.py                  # Рецепты
+│   │   ├── reminders.py                # Напоминания
+│   │   ├── weighing.py                 # Взвешивание
+│   │   ├── shopping.py                 # Список покупок
+│   │   └── utils.py                    # Вспомогательные функции
+│   ├── database/
+│   │   ├── __init__.py
+│   │   ├── connection.py               # Подключение к БД
+│   │   ├── users.py                    # Работа с пользователями
+│   │   ├── recipes.py                  # Работа с рецептами
+│   │   ├── meal_plans.py               # Работа с планами питания
+│   │   ├── shopping_lists.py           # Работа со списками покупок
+│   │   └── reminders.py                # Работа с напоминаниями
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── ai_service.py               # Сервис для AI (вызовы)
+│   │   ├── calculator.py               # Расчеты (ИМТ, калории)
+│   │   └── scheduler.py                # Планировщик напоминаний
+│   └── utils/
+│       ├── __init__.py
+│       ├── formatters.py               # Форматирование текста
+│       └── validators.py               # Валидация ввода
 ```
 
 ---

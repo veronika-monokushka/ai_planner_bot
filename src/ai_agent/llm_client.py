@@ -19,8 +19,8 @@ class MistralAgent:
         self.tokens_used = 0
         
         self.system_prompt = """Ты — умный ИИ-помощник по планированию задач и питания.
-Помогаешь создавать задачи, меню, списки покупок.
-Отвечай кратко, дружелюбно, на русском языке."""
+            Помогаешь создавать задачи, меню, списки покупок.
+            Отвечай кратко, дружелюбно, на русском языке."""
     
     def ask(self, user_message: str, system_prompt: str = None) -> dict:
         """Запрос к агенту с сохранением контекста"""
@@ -36,7 +36,7 @@ class MistralAgent:
                 model=self.model,
                 messages=self.messages,
                 temperature=0.7,
-                max_tokens=512,
+                max_tokens=2000,
                 response_format={"type": "json_object"}  # Требует строгого JSON
             )
             

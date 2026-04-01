@@ -4,3 +4,4 @@ __pycache__/
 logs/
 users_data.json
 test*
+local_files/
