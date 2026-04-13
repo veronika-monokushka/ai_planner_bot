@@ -36,7 +36,8 @@ ai_planner_bot/
 │   │   └── reminders.py                # Работа с напоминаниями
 │   └── ai_agent/
 │       ├── __init__.py
-│       ├── llm_client.py               # Клиент для Mistral AI
+│       ├── agent_class.py               # Клиент для Mistral AI
+│       ├── agent_class.py               
 │       ├── meals_generator.py          # Генерация планов питания через AI
 │       └── fallback_answers.py         # Fallback-планы и списки
 

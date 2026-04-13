@@ -1,6 +1,6 @@
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.runnables.config import RunnableConfig
-from config_promts import SYSTEM_PROMPT
+from .config_promts import SYSTEM_PROMPT
 
 class AgentWithMemory:
     """Агент Mistral с памятью диалога и подсчетом токенов"""

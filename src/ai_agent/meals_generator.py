@@ -1,7 +1,8 @@
 # ai_agent/meals_generator.py
 
 import json
-from .mistral_llm_api import MistralAgent
+from .agent_class import AgentWithMemory
+from .mistral_llm_api import mistral_llm_client
 import asyncio
 import os
 from .fallback_answers import _fallback_plan, _fallback_shopping_list
@@ -14,7 +15,7 @@ async def create_meal_plan_ai(
     count_days = 2) -> dict:
     """Генерирует план питания на неделю через Mistral AI"""
     
-    agent = MistralAgent()
+    agent = AgentWithMemory(llm_client=mistral_llm_client)
     
     system_prompt = """Ты — эксперт по питанию. Создавай планы питания ТОЛЬКО в формате JSON.
 Без объяснений, без комментариев, без markdown. Только JSON объект."""

@@ -10,3 +10,5 @@ packages*.png
 classes*.html
 classes*.png
 *.ipynb
+prepare_for_ai.py
+ai_context.json
