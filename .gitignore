@@ -5,3 +5,8 @@ logs/
 users_data.json
 test*
 local_files/
+packages*.html
+packages*.png
+classes*.html
+classes*.png
+*.ipynb

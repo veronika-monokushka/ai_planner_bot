@@ -1,7 +1,7 @@
 # ai_agent/meals_generator.py
 
 import json
-from .llm_client import MistralAgent
+from .mistral_llm_api import MistralAgent
 import asyncio
 import os
 from .fallback_answers import _fallback_plan, _fallback_shopping_list
