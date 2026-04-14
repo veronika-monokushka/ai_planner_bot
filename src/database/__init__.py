@@ -1,3 +1,4 @@
+#src/database/__init__.py
 """Модуль для работы с базой данных"""
 
 from .base import BaseRepository

@@ -683,76 +683,24 @@ async def test_reminder_command(update: Update, context: ContextTypes.DEFAULT_TY
         reply_markup=get_reminders_main_keyboard()
     )
 
-
 async def reminder_check(context: ContextTypes.DEFAULT_TYPE):
-    """Проверка и отправка напоминаний (запускается каждую минуту)"""
+    """
+    Проверка и отправка напоминаний (запускается каждую минуту)
+    Теперь не зависит от формата хранения данных!
+    """
     current_time = datetime.now()
-    current_time_str = current_time.strftime("%H:%M")
     
-    weekday_map = {
-        'Monday': 'ПН', 'Tuesday': 'ВТ', 'Wednesday': 'СР',
-        'Thursday': 'ЧТ', 'Friday': 'ПТ', 'Saturday': 'СБ', 'Sunday': 'ВС'
-    }
-    current_weekday_ru = weekday_map.get(current_time.strftime("%A"), '')
+    # ✅ Чистый вызов - вся логика внутри репозитория
+    due_reminders = db.reminders.get_due_reminders(current_time)
     
-    data = db._load_data()
-    
-    if 'reminders' not in data:
-        return
-    
-    for user_id_str, user_reminders in data['reminders'].items():
-        user_id = int(user_id_str)
+    for reminder in due_reminders:
+        user_id = reminder['user_id']
+        reminder_id = reminder['id']
         
-        for reminder_id, reminder in user_reminders.items():
-            if not reminder.get('active', True):
-                continue
-            
-            if 'paused_until' in reminder:
-                paused_until = datetime.fromisoformat(reminder['paused_until'])
-                if current_time < paused_until:
-                    continue
-            
-            periodicity = reminder.get('periodicity')
-            
-            if periodicity == 'daily' or periodicity == 'Каждый день':
-                if reminder.get('time') == current_time_str:
-                    await send_reminder(context.bot, user_id, reminder)
-            
-            elif periodicity == 'interval' or periodicity == 'Раз в несколько часов':
-                if 'last_sent' in reminder:
-                    last_sent = datetime.fromisoformat(reminder['last_sent'])
-                    interval = reminder.get('interval', 1)
-                    if (current_time - last_sent).total_seconds() >= interval * 3600:
-                        if reminder.get('time'):
-                            start_time = datetime.strptime(reminder['time'], "%H:%M").time()
-                            if current_time.time() >= start_time:
-                                await send_reminder(context.bot, user_id, reminder)
-                                reminder['last_sent'] = current_time.isoformat()
-                                db.update_reminder(user_id, int(reminder_id), last_sent=current_time.isoformat())
-                else:
-                    if reminder.get('time'):
-                        start_time = datetime.strptime(reminder['time'], "%H:%M").time()
-                        if current_time.time() >= start_time:
-                            await send_reminder(context.bot, user_id, reminder)
-                            reminder['last_sent'] = current_time.isoformat()
-                            db.update_reminder(user_id, int(reminder_id), last_sent=current_time.isoformat())
-            
-            elif periodicity == 'weekly' or periodicity == 'По дням недели':
-                weekdays = reminder.get('weekdays', [])
-                if current_weekday_ru in weekdays and reminder.get('time') == current_time_str:
-                    await send_reminder(context.bot, user_id, reminder)
-            
-            elif periodicity == 'once' or periodicity == 'Один раз':
-                if 'datetime' in reminder:
-                    reminder_dt = datetime.fromisoformat(reminder['datetime'])
-                    if (reminder_dt.year == current_time.year and
-                        reminder_dt.month == current_time.month and
-                        reminder_dt.day == current_time.day and
-                        reminder_dt.hour == current_time.hour and
-                        reminder_dt.minute == current_time.minute):
-                        await send_reminder(context.bot, user_id, reminder)
-                        db.update_reminder(user_id, int(reminder_id), active=False)
-
+        await send_reminder(context.bot, user_id, reminder)
+        
+        # Отмечаем как отправленное
+        db.reminders.mark_reminder_sent(user_id, reminder_id, current_time)
 
 async def send_reminder(bot, user_id: int, reminder: dict):
     """Отправка напоминания пользователю"""
