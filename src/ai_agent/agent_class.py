@@ -5,7 +5,7 @@ from .config_promts import SYSTEM_PROMPT
 class AgentWithMemory:
     """Агент Mistral с памятью диалога и подсчетом токенов"""
     
-    def __init__(self, llm_client, default_max_tokens: int = 300):
+    def __init__(self, llm_client, default_max_tokens: int = 500):
         self.client = llm_client
         self.model = llm_client.model
         self.messages = []  # Храним объекты BaseMessage
@@ -14,18 +14,18 @@ class AgentWithMemory:
         
         self.system_prompt = SYSTEM_PROMPT
     
-    def ask(self, user_message: str, system_prompt: str = None, max_tokens: int = None) -> dict:
+    def ask(self, user_message: str, system_prompt: str = None) -> dict:
         """Запрос к агенту с сохранением контекста"""
         
         system_prompt = system_prompt or self.system_prompt
-        tokens_limit = max_tokens if max_tokens is not None else self.default_max_tokens
+        #tokens_limit = max_tokens if max_tokens is not None else self.default_max_tokens
         
         if len(self.messages) == 0:
             self.messages.append(SystemMessage(content=system_prompt))
         self.messages.append(HumanMessage(content=user_message))
         
         try:
-            response = self.client.invoke(self.messages, max_tokens=tokens_limit)
+            response = self.client.invoke(self.messages, max_tokens=self.default_max_tokens)
             
             ai_response = response.content
             
@@ -56,7 +56,7 @@ class AgentWithMemory:
             self, 
             user_message: str, 
             tools: list, 
-            system_prompt: str = None, max_tokens: int = None) -> dict:
+            system_prompt: str = None) -> dict:
         """Запрос с возможностью вызова инструментов (function calling)
     
         Args:
@@ -68,7 +68,7 @@ class AgentWithMemory:
         """
         
         system_prompt = system_prompt or self.system_prompt
-        tokens_limit = max_tokens if max_tokens is not None else self.default_max_tokens
+        #tokens_limit = max_tokens if max_tokens is not None else self.default_max_tokens
         
         if len(self.messages) == 0:
             self.messages.append(SystemMessage(content=system_prompt))
@@ -79,7 +79,7 @@ class AgentWithMemory:
         llm_with_tools = self.client.bind_tools(tools)
         
         try:
-            response = llm_with_tools.invoke(self.messages, max_tokens=tokens_limit)
+            response = llm_with_tools.invoke(self.messages,  max_tokens=self.default_max_tokens)
             
             # Проверяем, есть ли вызов инструментов
             if hasattr(response, 'tool_calls') and response.tool_calls:

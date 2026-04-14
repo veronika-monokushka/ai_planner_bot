@@ -24,6 +24,16 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Сначала зарегистрируйся через /start")
         return UserState.MAIN_MENU
     
+    if text == "🤖 Спросить агента":
+        await update.message.reply_text(
+            "🤖 РЕЖИМ ОБЩЕНИЯ С ИИ-АГЕНТОМ\n\n"
+            "Теперь ты можешь просто писать мне сообщения, и я буду отвечать.\n"
+            "Я помогу с питанием, рецептами, напоминаниями и другими вопросами.\n\n"
+            "Чтобы выйти из режима, нажми '🤖 Закончить диалог'",
+            reply_markup=get_agent_chat_keyboard()
+        )
+        return UserState.CHAT_WITH_AGENT
+
     # ✅ Импортируем здесь, чтобы избежать циклических импортов
     from .nutrition import handle_week_plan, handle_nutrition, handle_create_plan
     from .recipes import handle_recipes_menu
@@ -58,9 +68,24 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await recalculate_profile(update, context)
     elif text == "⚖️ Настроить взвешивание":
         return await setup_weighing(update, context)
+    
     else:
-        await update.message.reply_text("Используй кнопки меню для навигации 👆", 
-                                       reply_markup=get_main_menu_keyboard())
+        # Если сообщение не похоже на кнопку меню → переходим в режим агента
+        # Проверяем, не является ли текст командой или кнопкой
+        if text.startswith('/'):
+            await update.message.reply_text(
+                "Я не понимаю эту команду. Используй кнопки меню для навигации 👆",
+                reply_markup=get_main_menu_keyboard()
+            )
+        else:
+            # Автоматически переключаемся в режим чата с агентом
+            await update.message.reply_text(
+                "Переключаюсь в режим общения с ИИ-агентом...\n\n"
+                "Чтобы выйти из режима, нажми '🤖 Закончить диалог'",
+                reply_markup=get_agent_chat_keyboard()
+            )
+            # Перенаправляем сообщение агенту
+            return await handle_agent_chat(update, context)
     
     return UserState.MAIN_MENU
 
@@ -80,3 +105,101 @@ async def handle_unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Я не понимаю эту команду. Используй меню для навигации 👆",
         reply_markup=get_main_menu_keyboard()
     )
+
+
+
+from ai_agent.agent_class import AgentWithMemory
+from ai_agent.mistral_llm_api import mistral_llm_client
+#from ai_agent.tools import create_reminder
+from ai_agent.config_promts import SYSTEM_PROMPT
+from telegram import KeyboardButton, ReplyKeyboardMarkup
+
+
+
+# Создаем глобальный экземпляр агента (или можно создавать на пользователя)
+# Для простоты используем глобальный, но учтите, что история диалога будет общей
+_agent = None
+
+def get_agent():
+    """Ленивая инициализация агента (синглтон)"""
+    global _agent
+    if _agent is None:
+        _agent = AgentWithMemory(mistral_llm_client)
+    return _agent
+
+def create_reminder(*args, **kwargs):
+    return "Напоминание успешно создано"
+
+async def handle_agent_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обработчик сообщений в режиме общения с AI агентом.
+    Любое сообщение (кроме кнопки выхода) отправляется в LLM.
+    """
+    text = update.message.text
+    user_id = update.effective_user.id
+    
+    if text == "🤖 Закончить диалог" or text == "🔙 Вернуться в меню":
+        agent_key = f"agent_{user_id}"
+        if agent_key in context.user_data:
+            context.user_data.pop(agent_key, None)
+        
+        await update.message.reply_text(
+            "👋 Возвращаюсь в главное меню! Если захочешь ещё поговорить, просто напиши что-нибудь.",
+            reply_markup=get_main_menu_keyboard()
+        )
+        return UserState.MAIN_MENU
+    
+    # Получаем или создаем агента для этого пользователя
+    agent_key = f"agent_{user_id}"
+    if agent_key not in context.user_data:
+        # Создаём нового агента с чистой историей для пользователя
+        agent = AgentWithMemory(mistral_llm_client)
+        context.user_data[agent_key] = agent
+    else:
+        agent = context.user_data[agent_key]
+    
+    # Показываем индикатор "печатает"
+    await update.message.chat.send_action(action="typing")
+    
+    # Отправляем запрос агенту с инструментами
+    tools = [create_reminder]
+    result = agent.ask_with_tools(
+        user_message=text,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT
+    )
+    
+    # Обрабатываем вызовы инструментов, если есть
+    if result.get("tool_calls"):
+        for tool_call in result["tool_calls"]:
+            if tool_call["name"] == "create_reminder":
+                # Выполняем инструмент
+                tool_result = create_reminder.invoke(tool_call["args"])
+                agent.add_tool_result(tool_call["id"], str(tool_result))
+        
+        # Второй вызов LLM с результатами инструментов
+        final_result = agent.ask("", max_tokens=500)
+        if final_result["success"]:
+            response_text = final_result["response"]
+        else:
+            response_text = "❌ Произошла ошибка при обработке запроса."
+    elif result["success"]:
+        response_text = result["response"]
+    else:
+        response_text = f"❌ Ошибка: {result.get('error', 'Неизвестная ошибка')}"
+    
+    # Отправляем ответ пользователю
+    await update.message.reply_text(
+        response_text,
+        reply_markup=get_agent_chat_keyboard()  # Специальная клавиатура для режима чата
+    )
+    
+    return UserState.CHAT_WITH_AGENT
+
+
+def get_agent_chat_keyboard():
+    """Клавиатура для режима общения с агентом"""
+    keyboard = [
+        [KeyboardButton("🤖 Закончить диалог")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
