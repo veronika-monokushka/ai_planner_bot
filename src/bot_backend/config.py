@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Токен бота 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8745953888:AAEDEbxuIsidFoyUADRB-PDnedg-Epn7mwY")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # Файл для хранения данных
 USERS_DATA_FILE = "users_data.json"

@@ -110,8 +110,8 @@ async def handle_unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 from ai_agent.agent_class import AgentWithMemory
 from ai_agent.mistral_llm_api import mistral_llm_client
-#from ai_agent.tools import create_reminder
-from ai_agent.config_promts import SYSTEM_PROMPT
+from ai_agent.tools import ALL_TOOLS, get_tool_executors
+from ai_agent.config_promts import get_personalized_system_prompt
 from telegram import KeyboardButton, ReplyKeyboardMarkup
 
 
@@ -127,9 +127,6 @@ def get_agent():
         _agent = AgentWithMemory(mistral_llm_client)
     return _agent
 
-def create_reminder(*args, **kwargs):
-    return "Напоминание успешно создано"
-
 async def handle_agent_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обработчик сообщений в режиме общения с AI агентом.
@@ -138,6 +135,7 @@ async def handle_agent_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.effective_user.id
     
+    # Кнопка для выхода из режима агента
     if text == "🤖 Закончить диалог" or text == "🔙 Вернуться в меню":
         agent_key = f"agent_{user_id}"
         if agent_key in context.user_data:
@@ -152,50 +150,38 @@ async def handle_agent_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Получаем или создаем агента для этого пользователя
     agent_key = f"agent_{user_id}"
     if agent_key not in context.user_data:
-        # Создаём нового агента с чистой историей для пользователя
         agent = AgentWithMemory(mistral_llm_client)
         context.user_data[agent_key] = agent
     else:
         agent = context.user_data[agent_key]
     
-    # Показываем индикатор "печатает"
     await update.message.chat.send_action(action="typing")
     
-    # Отправляем запрос агенту с инструментами
-    tools = [create_reminder]
+    system_prompt = get_personalized_system_prompt(user_id)
+    
+    tool_executors = get_tool_executors()
+    
     result = agent.ask_with_tools(
         user_message=text,
-        tools=tools,
-        system_prompt=SYSTEM_PROMPT
+        tools=ALL_TOOLS,
+        system_prompt=system_prompt,
+        tool_executors=tool_executors,
+        max_tokens=300
     )
     
-    # Обрабатываем вызовы инструментов, если есть
-    if result.get("tool_calls"):
-        for tool_call in result["tool_calls"]:
-            if tool_call["name"] == "create_reminder":
-                # Выполняем инструмент
-                tool_result = create_reminder.invoke(tool_call["args"])
-                agent.add_tool_result(tool_call["id"], str(tool_result))
-        
-        # Второй вызов LLM с результатами инструментов
-        final_result = agent.ask("", max_tokens=500)
-        if final_result["success"]:
-            response_text = final_result["response"]
-        else:
-            response_text = "❌ Произошла ошибка при обработке запроса."
-    elif result["success"]:
-        response_text = result["response"]
+    # Получаем ответ (уже обработанный, с учетом выполнения инструментов)
+    if result.get("success"):
+        response_text = result.get("response", "Готово!")
     else:
         response_text = f"❌ Ошибка: {result.get('error', 'Неизвестная ошибка')}"
     
     # Отправляем ответ пользователю
     await update.message.reply_text(
         response_text,
-        reply_markup=get_agent_chat_keyboard()  # Специальная клавиатура для режима чата
+        reply_markup=get_agent_chat_keyboard()
     )
     
     return UserState.CHAT_WITH_AGENT
-
 
 def get_agent_chat_keyboard():
     """Клавиатура для режима общения с агентом"""

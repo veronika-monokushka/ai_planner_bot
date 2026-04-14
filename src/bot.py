@@ -4,7 +4,7 @@ import sys
 import os
 import httpx
 from datetime import datetime
-from telegram import Update
+#from telegram import Update
 from telegram.ext import (
     Application, 
     CommandHandler, 
@@ -23,6 +23,8 @@ from bot_backend.config import BOT_TOKEN
 from bot_backend.states import UserState
 from bot_backend.keyboards import get_main_menu_keyboard
 from database import db
+from bot_backend.handlers.common import handle_agent_chat
+
 
 # Импорты из handlers
 from bot_backend.handlers import (
@@ -133,6 +135,9 @@ def main():
             
             # Список покупок
             UserState.SHOPPING_LIST_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shopping_list_actions)],
+
+
+            UserState.CHAT_WITH_AGENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_agent_chat)],
         },
         fallbacks=[
             CommandHandler('cancel', cancel),
@@ -147,7 +152,6 @@ def main():
     application.add_handler(MessageHandler(filters.COMMAND, handle_unknown))
     
     print("🤖 Бот запущен...")
-    print("✅ Все функции загружены")
     print("="*40)
     
     application.run_polling(

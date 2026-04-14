@@ -1,3 +1,4 @@
+#bot_backend/handlers/reminders.py
 """Обработчики напоминаний"""
 
 import logging
@@ -5,7 +6,6 @@ from datetime import datetime
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-# ИСПРАВЛЕНО: убрал ai_planner_bot.
 from bot_backend.states import UserState, UserData
 from bot_backend.keyboards import (
     get_back_to_menu_keyboard, get_main_menu_keyboard, get_reminders_main_keyboard,

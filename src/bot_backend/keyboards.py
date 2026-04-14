@@ -7,7 +7,7 @@ def get_main_menu_keyboard():
         [KeyboardButton("📅 План на неделю")],
         [KeyboardButton("🍎 Питание")],
         [KeyboardButton("📝 Мои рецепты"), KeyboardButton("📋 Список покупок")],
-        [KeyboardButton("💧 Напоминалки"), KeyboardButton("📊 Профиль")]
+        [KeyboardButton("💧 Напоминалки"), KeyboardButton("📊 Профиль"), KeyboardButton("🤖 Спросить агента")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -261,5 +261,13 @@ def get_weighing_actions_keyboard():
         [KeyboardButton("🔔 Напомнить позже")],
         [KeyboardButton("⏭️ Пропустить эту неделю")],
         [KeyboardButton("🔙 Назад")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_agent_chat_keyboard():
+    """Клавиатура для режима общения с AI агентом"""
+    from telegram import KeyboardButton, ReplyKeyboardMarkup
+    keyboard = [
+        [KeyboardButton("🤖 Закончить диалог")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)

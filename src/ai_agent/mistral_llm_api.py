@@ -12,6 +12,6 @@ if not api_key:
 
 mistral_llm_client = ChatMistralAI(
     api_key=api_key, 
-    model="mistral-small-latest",
+    model="mistral-medium-latest",
     temperature=0
 )
