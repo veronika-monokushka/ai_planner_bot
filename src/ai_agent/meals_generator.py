@@ -31,13 +31,13 @@ async def create_meal_plan_ai(
 
 ФОРМАТА ОТВЕТА (СТРОГО JSON БЕЗ КОММЕНТАРИЕВ):
 {{
-  "Вариант 1": {{
+  "День 1": {{
     "завтрак": "...",
     "обед": "...",
     "ужин": "...",
     "перекус": "..."
   }},
-  "Вариант 2": {{ ... }}
+  "День 2": {{ ... }}
 }}
 """
     
@@ -56,7 +56,7 @@ async def create_meal_plan_ai(
             plan_data = json.loads(result["response"])
             
             # Валидация структуры
-            valid_days = ["Вариант 1", "Вариант 2", "Вариант 3"]
+            valid_days = ["День 1", "День 2", "День 3"]
             valid_days = valid_days[:count_days]
             if not all(day in plan_data for day in valid_days):
                 raise ValueError("Некорректная структура JSON")

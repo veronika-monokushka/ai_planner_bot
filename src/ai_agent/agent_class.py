@@ -4,7 +4,7 @@ from datetime import datetime
 
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.runnables.config import RunnableConfig
-from .config_promts import SYSTEM_PROMPT
+from .config_promts import get_personalized_system_prompt
 from typing import Optional, Dict, Callable, Any
 
 
@@ -12,14 +12,14 @@ from typing import Optional, Dict, Callable, Any
 class AgentWithMemory:
     """Агент Mistral с памятью диалога и подсчетом токенов"""
     
-    def __init__(self, llm_client, default_max_tokens: int = 500):
+    def __init__(self, llm_client, user_id: int, default_max_tokens: int = 500):
         self.client = llm_client
         self.model = llm_client.model
         self.messages = []  # Храним объекты BaseMessage
         self.tokens_used = 0
         self.default_max_tokens = default_max_tokens
         
-        self.system_prompt = SYSTEM_PROMPT
+        self.system_prompt = get_personalized_system_prompt(user_id)
     
     def ask(self, user_message: str, system_prompt: str = None, max_tokens: int = None) -> dict:
         """Запрос к агенту с сохранением контекста"""
