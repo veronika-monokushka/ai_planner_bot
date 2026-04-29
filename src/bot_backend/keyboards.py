@@ -15,8 +15,8 @@ def get_main_menu_keyboard():
 def get_gender_keyboard():
     """Клавиатура для выбора пола"""
     keyboard = [
-        [KeyboardButton("👨 Мужской")],
-        [KeyboardButton("👩 Женский")]
+        [KeyboardButton("👨 М")],
+        [KeyboardButton("👩 Ж")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
 
@@ -40,6 +40,16 @@ def get_confirmation_keyboard():
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
+
+def get_activity_keyboard():
+    """Клавиатура для выбора уровня активности"""
+    keyboard = [
+        [KeyboardButton("Сидячий и малоподвижный")],
+        [KeyboardButton("Легкая активность (1-3 раза в неделю)")],
+        [KeyboardButton("Средняя активность (3-5 раз в неделю)")],
+        [KeyboardButton("Высокая активность (6-7 раз в неделю)")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 # Кнопки для плана питания
 def get_plan_actions_keyboard():
@@ -269,5 +279,30 @@ def get_agent_chat_keyboard():
     from telegram import KeyboardButton, ReplyKeyboardMarkup
     keyboard = [
         [KeyboardButton("🤖 Закончить диалог")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+
+# bot_backend/keyboards.py
+
+def get_nutrition_menu_keyboard():
+    """Клавиатура меню питания"""
+    keyboard = [
+        [KeyboardButton("📅 План на неделю")],
+        [KeyboardButton("📝 Создать план")],
+        [KeyboardButton("🔙 Главное меню")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+
+def get_reminder_type_keyboard():
+    """Клавиатура выбора типа напоминания"""
+    keyboard = [
+        [KeyboardButton("💧 Пить воду")],
+        [KeyboardButton("🍽️ Приём пищи")],
+        [KeyboardButton("💊 Витамины")],
+        [KeyboardButton("🏃 Тренировка")],
+        [KeyboardButton("✏️ Своё напоминание")],
+        [KeyboardButton("🔙 Назад")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)

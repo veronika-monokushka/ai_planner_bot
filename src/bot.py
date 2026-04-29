@@ -4,7 +4,6 @@ import sys
 import os
 import httpx
 from datetime import datetime
-#from telegram import Update
 from telegram.ext import (
     Application, 
     CommandHandler, 
@@ -23,13 +22,13 @@ from bot_backend.config import BOT_TOKEN
 from bot_backend.states import UserState
 from bot_backend.keyboards import get_main_menu_keyboard
 from database import db
-from bot_backend.handlers.common import handle_agent_chat
+from bot_backend.handlers.common import handle_agent_chat, handle_quick_actions
 
 
 # Импорты из handlers
 from bot_backend.handlers import (
     start, handle_name, handle_gender, handle_age, handle_weight,
-    handle_height, handle_goal, handle_confirmation,
+    handle_height, handle_goal, handle_activity, handle_confirmation,  
     handle_main_menu,
     show_profile, edit_profile_menu, handle_edit_profile,
     edit_name, edit_gender, edit_age, edit_weight, edit_height,
@@ -43,7 +42,7 @@ from bot_backend.handlers import (
     add_reminder_interval, add_reminder_start_time, add_reminder_datetime,
     handle_weekday_callback,
     setup_weighing, handle_weighing_day, handle_weighing_time, handle_weighing_input,
-    handle_shopping_list_menu, handle_shopping_list_actions,
+    handle_shopping_list_menu,
     cancel, handle_unknown, test_reminder_command, setup_reminder_jobs
 )
 
@@ -88,6 +87,7 @@ def main():
             UserState.REGISTRATION_WEIGHT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_weight)],
             UserState.REGISTRATION_HEIGHT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_height)],
             UserState.REGISTRATION_GOAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_goal)],
+            UserState.REGISTRATION_ACTIVITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_activity)],
             UserState.REGISTRATION_CONFIRM: [CallbackQueryHandler(handle_confirmation, pattern="^(confirm_yes|confirm_no)$")],
             
             # Главное меню
@@ -134,9 +134,9 @@ def main():
             UserState.WEIGHING_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_weighing_input)],
             
             # Список покупок
-            UserState.SHOPPING_LIST_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shopping_list_actions)],
+            UserState.SHOPPING_LIST_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shopping_list_menu)],
 
-
+            # Чат с агентом
             UserState.CHAT_WITH_AGENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_agent_chat)],
         },
         fallbacks=[
@@ -145,9 +145,11 @@ def main():
         ],
     )
     
+    # Регистрация обработчиков
     application.add_handler(CallbackQueryHandler(handle_recipe_callback, pattern="^(price_|time_|recipe_|increase_|decrease_|add_to_|recipes_page_|back_to_)"))
     application.add_handler(CallbackQueryHandler(handle_weekday_callback, pattern="^weekday_"))
     application.add_handler(CallbackQueryHandler(handle_reminder_callback, pattern="^(reminder_|pause_|back_to_reminder_)"))
+    application.add_handler(CallbackQueryHandler(handle_quick_actions, pattern="^(quick_)"))  # ✅ Обработчик быстрых действий
     application.add_handler(conv_handler)
     application.add_handler(MessageHandler(filters.COMMAND, handle_unknown))
     
