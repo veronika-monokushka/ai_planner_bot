@@ -11,6 +11,7 @@ class UserState:
     REGISTRATION_HEIGHT = 6
     REGISTRATION_GOAL = 7
     REGISTRATION_CONFIRM = 8
+    REGISTRATION_ACTIVITY = 15
     MAIN_MENU = 9
     
     # Состояния для плана питания
