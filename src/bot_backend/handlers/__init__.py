@@ -2,7 +2,7 @@
 
 from .registration import (
     start, handle_name, handle_gender, handle_age, handle_weight,
-    handle_height, handle_goal, handle_confirmation
+    handle_height, handle_goal, handle_confirmation, handle_activity
 )
 
 from .profile import (
@@ -33,7 +33,7 @@ from .weighing import (
 )
 
 from .shopping import (
-    handle_shopping_list_menu, handle_shopping_list_actions
+    handle_shopping_list_menu
 )
 
 from .common import (

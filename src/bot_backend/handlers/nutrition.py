@@ -221,3 +221,23 @@ async def handle_budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=get_budget_keyboard()
             )
             return UserState.AWAITING_BUDGET
+        
+
+def format_meal_plan(plan_data: dict) -> str:
+    """Форматирует план питания для вывода пользователю"""
+    if not plan_data:
+        return "📅 У тебя пока нет активного плана питания."
+    
+    plan = plan_data.get('plan', {})
+    if not plan:
+        return "📅 План питания пуст. Создай новый!"
+    
+    plan_text = "📅 ТВОЙ ПЛАН ПИТАНИЯ\n\n"
+    for day, meals in plan.items():
+        plan_text += f"{day}:\n"
+        plan_text += f"  🍳 Завтрак: {meals.get('завтрак', '-')}\n"
+        plan_text += f"  🍲 Обед: {meals.get('обед', '-')}\n"
+        plan_text += f"  🍽️ Ужин: {meals.get('ужин', '-')}\n"
+        plan_text += f"  🥗 Перекус: {meals.get('перекус', '-')}\n\n"
+    
+    return plan_text
