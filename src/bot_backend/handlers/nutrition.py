@@ -6,9 +6,10 @@ import logging
 from datetime import datetime
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
+import asyncio
 
 
-from ai_agent.meals_generator import create_meal_plan_ai 
+
 from bot_backend.states import UserState
 from bot_backend.keyboards import (
     get_main_menu_keyboard,      # Главное меню
@@ -17,12 +18,13 @@ from bot_backend.keyboards import (
     get_back_to_menu_keyboard    # Кнопка возврата в меню
 )
 from database import db
+from ai_agent.meals_generator import create_meal_plan_ai
 
 logger = logging.getLogger(__name__)
 
 
 async def handle_week_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик плана на неделю"""
+    """Обработчик плана на неделю (для message updates)"""
     user_id = update.effective_user.id
     user_data = db.get_user(user_id)
     
@@ -48,13 +50,45 @@ async def handle_week_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             plan_text += f"  🥗 Перекус: {meals.get('перекус', '-')}\n\n"
         
         plan_text += f"🔥 Дневная норма: ~{user_data.get('daily_calories', '?')} ккал\n"
-        plan_text += f"💰 Бюджет на неделю: {active_plan.get('budget', 'не указан')} руб."
+        if active_plan.get('budget') is not None: plan_text += f"💰 Бюджет на неделю: {active_plan.get('budget', 'не указан')} руб."
         
         await update.message.reply_text(plan_text, reply_markup=get_main_menu_keyboard())
         return UserState.MAIN_MENU
 
+
+async def handle_week_plan_callback(query, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    """Обработчик плана на неделю (для callback_query updates)"""
+    user_data = db.get_user(user_id)
+    
+    if not user_data:
+        await query.message.reply_text("Сначала зарегистрируйся через /start")
+        return UserState.MAIN_MENU
+    
+    active_plan = db.get_active_meal_plan(user_id)
+    
+    if not active_plan:
+        await query.message.reply_text(
+            "📅 У тебя нет активного плана на неделю.\nХочешь создать новый?",
+            reply_markup=get_plan_actions_keyboard()
+        )
+        return UserState.MAIN_MENU
+    else:
+        plan_text = "📅 ТВОЙ ПЛАН НА НЕДЕЛЮ\n\n"
+        for day, meals in active_plan.get('plan', {}).items():
+            plan_text += f"{day}:\n"
+            plan_text += f"  🍳 Завтрак: {meals.get('завтрак', '-')}\n"
+            plan_text += f"  🍲 Обед: {meals.get('обед', '-')}\n"
+            plan_text += f"  🍽️ Ужин: {meals.get('ужин', '-')}\n"
+            plan_text += f"  🥗 Перекус: {meals.get('перекус', '-')}\n\n"
+        
+        plan_text += f"🔥 Дневная норма: ~{user_data.get('daily_calories', '?')} ккал\n"
+        if active_plan.get('budget') is not None: plan_text += f"💰 Бюджет на неделю: {active_plan.get('budget', 'не указан')} руб."
+        
+        await query.message.reply_text(plan_text, reply_markup=get_main_menu_keyboard())
+        return UserState.MAIN_MENU
+
 async def handle_nutrition(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик раздела питания"""
+    """Обработчик раздела питания (для message updates)"""
     user_id = update.effective_user.id
     user_data = db.get_user(user_id)
     
@@ -101,6 +135,52 @@ async def handle_nutrition(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return UserState.MAIN_MENU
 
+async def handle_nutrition_callback(query, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    """Обработчик раздела питания (для callback_query updates)"""
+    user_data = db.get_user(user_id)
+    
+    if not user_data:
+        await query.message.reply_text(
+            "❌ Сначала зарегистрируйся через /start",
+            reply_markup=get_main_menu_keyboard()
+        )
+        return UserState.MAIN_MENU
+    
+    active_plan = db.get_active_meal_plan(user_id)
+    
+    if not active_plan:
+        await query.message.reply_text(
+            "🍎 РАЗДЕЛ ПИТАНИЯ\n\n"
+            "У тебя нет активного плана питания.\n"
+            "Хочешь создать новый?",
+            reply_markup=get_plan_actions_keyboard()
+        )
+        return UserState.MAIN_MENU
+    else:
+        plan_text = "🍎 ТВОЙ ПЛАН ПИТАНИЯ\n\n"
+        for day, meals in active_plan.get('plan', {}).items():
+            plan_text += f"📅 {day}:\n"
+            plan_text += f"  🍳 Завтрак: {meals.get('завтрак', '-')}\n"
+            plan_text += f"  🍲 Обед: {meals.get('обед', '-')}\n"
+            plan_text += f"  🍽️ Ужин: {meals.get('ужин', '-')}\n"
+            plan_text += f"  🥗 Перекус: {meals.get('перекус', '-')}\n\n"
+        
+        plan_text += f"🔥 Дневная норма: ~{user_data.get('daily_calories', '?')} ккал\n"
+        
+        keyboard = [
+            [KeyboardButton("📝 Создать новый план")],
+            [KeyboardButton("🍳 Посмотреть рецепты")],
+            [KeyboardButton("🔙 Главное меню")]
+        ]
+        
+        await query.message.reply_text(
+            plan_text,
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        )
+        return UserState.MAIN_MENU
+
+
+
 
 async def handle_create_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик создания плана"""
@@ -134,31 +214,39 @@ async def create_meal_plan(
 ):
     """Вспомогательная функция для создания плана питания"""
     
-    # ✅ Показываем индикатор загрузки
     loading_message = await update.message.reply_text(
         "🤖 AI составляет ваш план питания...\n"
         "Это займет немного времени!",
         reply_markup=None
     )
-  
-    result = await create_meal_plan_ai(
-        goal=user_data.get('goal'),
-        budget=budget,
+    
+    user_from_db = db.get_user(user_id)
+    preferences = user_from_db.get('preferences') if user_from_db else None
+    
+    result = create_meal_plan_ai(
+        user_id=user_id,
+        goal=user_data.get('goal', 'здоровое питание'),
+        preferences_promt=preferences,
+        count_days=1,
+        use_saved_recipes=False,
         daily_calories=user_data.get('daily_calories', 2000),
-        count_days=3
+        budget=budget,
+        language="ru"
     )
     
-    plan = result.get("plan", {})
-    
-    # ✅ Удаляем сообщение о загрузке
     await loading_message.delete()
     
-    # ✅ Сохраняем план в базу данных
-    db.save_meal_plan(user_id, {
-        'plan': plan,
-        'budget': budget,
-        'created_at': datetime.now().isoformat()
-    })
+    # ✅ Получаем сохранённый план из БД
+    meal_plan = db.get_active_meal_plan(user_id)
+    
+    if not meal_plan or not meal_plan.get('plan'):
+        await update.message.reply_text(
+            "❌ Не удалось сохранить план питания. Попробуй ещё раз.",
+            reply_markup=get_main_menu_keyboard()
+        )
+        return UserState.MAIN_MENU
+    
+    plan = meal_plan.get('plan', {})
     
     # ✅ Сохраняем план в context.user_data для последующего использования
     context.user_data['last_created_plan'] = {
@@ -168,15 +256,22 @@ async def create_meal_plan(
     }
     
     # ✅ Форматируем текст плана
-    plan_text = "📅 ТВОЙ НОВЫЙ ПЛАН НА НЕДЕЛЮ\n\n"
-    for day, meals in plan.items():
-        plan_text += f"{day}:\n"
-        plan_text += f"  🍳 Завтрак: {meals.get('завтрак', '-')}\n"
-        plan_text += f"  🍲 Обед: {meals.get('обед', '-')}\n"
-        plan_text += f"  🍽️ Ужин: {meals.get('ужин', '-')}\n"
-        plan_text += f"  🥗 Перекус: {meals.get('перекус', '-')}\n\n"
+    plan_text = "📅 ТВОЙ НОВЫЙ ПЛАН\n\n"
+    for day_key, day_plan in plan.items():
+        plan_text += f"📍 {day_key}:\n"
+        
+        if isinstance(day_plan, dict):
+            for meal_type in ['завтрак', 'обед', 'ужин', 'перекус']:
+                meal = day_plan.get(meal_type, '')
+                if meal:
+                    # Убираем лишние кавычки и точки в конце
+                    meal = meal.strip('"').strip("'")
+                    plan_text += f"  🍽️ {meal_type.capitalize()}: {meal}\n"
+        else:
+            plan_text += f"   {day_plan}\n"
+        plan_text += "\n"
     
-    if budget:
+    if budget is not None:
         plan_text += f"💰 Бюджет на неделю: {budget} руб.\n"
     plan_text += f"🔥 Дневная норма: ~{user_data.get('daily_calories', '?')} ккал"
     
@@ -189,6 +284,8 @@ async def create_meal_plan(
             [KeyboardButton("🔙 Остаться в меню")]
         ], resize_keyboard=True)
     )
+    
+    return UserState.AWAITING_SHOPPING_LIST_CONFIRMATION
 
 async def handle_budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработка ввода бюджета и создание плана"""
@@ -222,7 +319,6 @@ async def handle_budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return UserState.AWAITING_BUDGET
         
-
 def format_meal_plan(plan_data: dict) -> str:
     """Форматирует план питания для вывода пользователю"""
     if not plan_data:

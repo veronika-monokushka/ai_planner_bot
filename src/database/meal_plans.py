@@ -49,6 +49,17 @@ class MealPlanRepository(BaseRepository):
             return True
         return False
     
+    def save_shopping_list_cache(self, user_id: int, shopping_list: str, plan_hash: str):
+        """Сохраняет кэшированный список покупок и хеш плана"""
+        data = self._load_data()
+        user_str = str(user_id)
+        
+        if user_str in data["meal_plans"]:
+            data["meal_plans"][user_str]['shopping_list'] = shopping_list
+            data["meal_plans"][user_str]['plan_hash'] = plan_hash
+            data["meal_plans"][user_str]['shopping_list_cached_at'] = datetime.now().isoformat()
+            self._save_data(data)
+    
     def get_all_plans(self, user_id: int) -> list:
         """Получает все планы пользователя (включая архивные)"""
         data = self._load_data()

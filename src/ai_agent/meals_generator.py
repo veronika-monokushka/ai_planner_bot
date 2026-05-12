@@ -6,173 +6,220 @@ from .mistral_llm_api import mistral_llm_client
 import asyncio
 import os
 from .fallback_answers import _fallback_plan, _fallback_shopping_list
+from database import db
+from typing import Optional
 
-async def create_meal_plan_ai(
+    
+def create_meal_plan_ai(
+    user_id: int,
     goal: str,
-    budget: int = None,
+    preferences_promt: str=None,
+    count_days: int = 3,
+    use_saved_recipes: bool = False,
     daily_calories: int = 2000,
-    language: str = "ru",
-    count_days = 2) -> dict:
-    """Генерирует план питания на неделю через Mistral AI"""
+    budget: Optional[int] = None,
+    language: str = "ru"
+) -> int:
     
-    agent = AgentWithMemory(llm_client=mistral_llm_client)
+    """Генерирует план питания на неделю через Mistral AI
+    возвращает флаг - 0 сгенрирован, 1 fallback-ответ"""
     
-    system_prompt = """Ты — эксперт по питанию. Создавай планы питания ТОЛЬКО в формате JSON.
-Без объяснений, без комментариев, без markdown. Только JSON объект."""
+    # Информация о рецептах
+    recipe_note = "(с использованием новых рецептов)" if not use_saved_recipes else "(с использованием ваших сохраненных рецептов)"
     
-    prompt = f"""
-Создай план питания {count_days} вариантов (Вариант 1,..).
+    # Создаем агента
+    agent = AgentWithMemory(llm_client=mistral_llm_client, user_id=user_id)
+    
+    system_prompt = f"""Ты — эксперт по питанию. Создай план питания РОВНО НА {count_days} ДНЕЙ.
 
-Данные пользователя:
-- ЦЕЛЬ: {goal}
-- ДНЕВНАЯ КАЛОРИЙНОСТЬ: {daily_calories} ккал
-- БЮДЖЕТ НА НЕДЕЛЮ: {budget if budget else 'без ограничений'} руб.
-- ЯЗЫК ОТВЕТА: {language}
+ВАЖНО: Если запрошен 1 день, создай ТОЛЬКО 1 день! Не создавай больше дней.
 
-ФОРМАТА ОТВЕТА (СТРОГО JSON БЕЗ КОММЕНТАРИЕВ):
+Формат ответа - строго JSON без комментариев:
 {{
-  "День 1": {{
-    "завтрак": "...",
-    "обед": "...",
-    "ужин": "...",
-    "перекус": "..."
-  }},
-  "День 2": {{ ... }}
+"День 1": {{
+"завтрак": "Название блюда - X ккал",
+"обед": "...",
+"ужин": "...",
+"перекус": "..."
+}}
 }}
 """
     
+    # ✅ Формируем user_message с запросом
+    user_request = f"""
+Создай план питания на {count_days} день/дней.
+Цель: {goal}
+Калорийность: {daily_calories} ккал/день
+Бюджет: {budget if budget else 'без ограничений'} руб.
+Язык: {language}
+Рецепты: {'из сохраненных' if use_saved_recipes else 'новые'}
+Предпочтения: {preferences_promt}
+
+ВНИМАНИЕ: Должно быть РОВНО {count_days} дней. Не больше и не меньше!
+"""
+    
+    result = agent.ask(
+        user_message=user_request, 
+        system_prompt=system_prompt,
+        max_tokens=2000
+    )
+    
+    if not result.get("success", False):
+        error_msg = result.get("error", "Неизвестная ошибка")
+        fallback_plan_data = _fallback_plan(goal, daily_calories, count_days)
+        db.meal_plans.save_plan(user_id, {
+            "plan": fallback_plan_data,
+            "goal": goal,
+            "days": count_days,
+            "calories": daily_calories,
+            "budget": budget,
+            "saved_recipes": use_saved_recipes,
+            "is_fallback": True
+        })
+        print(f"ERROR: {error_msg}")
+        return 1
+    
+    # Парсим ответ
     try:
-        result = await asyncio.to_thread(agent.ask, prompt, system_prompt=system_prompt)
+        plan_data = json.loads(result["response"])
         
-        if not result["success"]:
-            return {
-                "success": False,
-                "plan": _fallback_plan(goal, daily_calories),
-                "error": f"Ошибка API: {result['error']}"
-            }
+        # Валидация структуры - проверяем, что есть нужные дни
+        expected_days = [f"День {i+1}" for i in range(count_days)]
+        if not all(day in plan_data for day in expected_days):
+            raise ValueError("Некорректная структура JSON")
         
-        # Парсим ответ
-        try:
-            plan_data = json.loads(result["response"])
-            
-            # Валидация структуры
-            valid_days = ["День 1", "День 2", "День 3"]
-            valid_days = valid_days[:count_days]
-            if not all(day in plan_data for day in valid_days):
-                raise ValueError("Некорректная структура JSON")
-                
-            return {
-                "success": True,
-                "plan": plan_data,
-                "tokens": result.get("tokens", 0),
-                "model": agent.model
-            }
-            
-        except json.JSONDecodeError as e:
-            print(f"⚠️ Ошибка парсинга JSON: {e}")
-            
-            os.makedirs("logs", exist_ok=True)
-            with open("logs/error_ai_answers.txt", "w", encoding="utf-8") as f:
-                f.write(result['response'])
-            return {
-                "success": False,
-                "plan": _fallback_plan(goal, daily_calories),
-                "error": "AI вернул невалидный JSON"
-            }
-            
-    except Exception as e:
-        print(f"❌ Критическая ошибка AI: {e}")
-        return {
-            "success": False,
-            "plan": _fallback_plan(goal, daily_calories),
-            "error": str(e)
+        # Сохраняем план в БД
+        meal_plan_data = {
+            "plan": plan_data,
+            "goal": goal,
+            "days": count_days,
+            "calories": daily_calories,
+            "budget": budget,
+            "saved_recipes": use_saved_recipes,
+            "is_fallback": False
         }
+        db.save_meal_plan(user_id, meal_plan_data)
+        
+        return 0
+        
+    except json.JSONDecodeError as e:
+        os.makedirs("logs", exist_ok=True)
+        with open("logs/error_ai_answers.txt", "w", encoding="utf-8") as f:
+            f.write(result.get('response', ''))
+        
+        fallback_plan_data = _fallback_plan(goal, daily_calories, count_days)
+        db.meal_plans.save_plan(user_id, {
+            "plan": fallback_plan_data,
+            "goal": goal,
+            "days": count_days,
+            "calories": daily_calories,
+            "budget": budget,
+            "saved_recipes": use_saved_recipes,
+            "is_fallback": True
+        })
+        print(f"⚠️ ERROR: Ошибка парсинга JSON: {e}")
+        return 1
+        
 
 
-
-def generate_shopping_list_ai(plan: dict) -> dict:
-    """Генерирует список покупок из плана питания через AI с разделением по вариантам"""
+def create_shopping_list_ai(
+    user_id: int,
+    plan: dict,
+    language: str = "ru"
+) -> int:
+    """
+    Генерирует список покупок из плана питания через Mistral AI.
     
-    agent = MistralAgent()
+    Args:
+        user_id: ID пользователя в Telegram
+        plan: План питания (словарь с днями и приемами пищи)
+        language: Язык ответа (по умолчанию "ru")
     
-    plan_text = "\n".join([f"{day}: {meals}" for day, meals in plan.items()])
+    Returns:
+        0 - список успешно сгенерирован и сохранен
+        1 - ошибка, использован fallback-список
+    """
     
-    prompt = f"""
-На основе этого плана питания создай список покупок ТОЛЬКО в формате JSON.
-Раздели продукты по вариантам меню.
+    plan_data = plan
 
+    # Создаем агента
+    agent = AgentWithMemory(llm_client=mistral_llm_client, user_id=user_id)
+    
+    plan_text = "\n".join([f"{day}: {meals}" for day, meals in plan_data.items()])
+        
+    system_prompt = """Ты — эксперт по покупкам. Создавай списки покупок ТОЛЬКО в формате JSON.
+Без объяснений, без комментариев, без markdown. Только JSON объект."""
+        
+    user_request = f"""
+На основе этого плана питания создай ОДИН общий список покупок (НЕ по вариантам, а ОДИН список с общим количеством всех продуктов).
+Объедини одинаковые продукты и просумми их количества.
+
+План питания:
 {plan_text}
 
-ФОРМАТ ОТВЕТА:
+ФОРМАТ ОТВЕТА (СТРОГО JSON БЕЗ КОММЕНТАРИЕВ):
 {{
-  "Вариант 1": [
-    {{"name": "Куриное филе", "quantity": "500 г"}},
-    {{"name": "Рис", "quantity": "300 г"}}
-  ],
-  "Вариант 2": [
-    {{"name": "Рыба", "quantity": "400 г"}},
-    {{"name": "Гречка", "quantity": "300 г"}}
+  "items": [
+    {{"name": "Куриное филе", "quantity": "1.5 кг"}},
+    {{"name": "Рис", "quantity": "800 г"}},
+    {{"name": "Помидоры", "quantity": "5 шт"}}
   ]
 }}
 
-Важно: каждый элемент должен быть объектом с полями "name" и "quantity".
-Без комментариев, только JSON."""
+Объедини все одинаковые ингредиенты и сложи количества!
+Не создавай варианты, только ОДИН общий список!"""
+        
+
+    result = agent.ask(
+        user_message=user_request,
+        system_prompt=system_prompt,
+        max_tokens=1000
+    )
     
+    if not result.get("success", False):
+        error_msg = result.get("error", "Неизвестная ошибка API")
+        print(f"⚠️ERROR: При генерации списка покупок: {error_msg}")
+        
+        # Используем fallback
+        fallback_items = _fallback_shopping_list(plan)
+        db.shopping_lists.save_list(user_id, {"items": fallback_items.get("items", [])})
+        return 1
+    
+    # Парсим ответ
     try:
-        result = agent.ask(prompt)
+        shopping_data = json.loads(result["response"])
+        items = shopping_data.get("items", [])
         
-        # ✅ Отладочный вывод
-        print(f"AI ответ для списка покупок: {result.get('response', '')[:500]}")
+        if not items:
+            raise ValueError("Отсутствует поле 'items' в ответе")
+        if not isinstance(items, list):
+            raise ValueError("'items' должен быть списком")
         
-        if result["success"]:
-            try:
-                items_by_variant = json.loads(result["response"])
-                
-                # ✅ Выводим структуру для отладки
-                print(f"Распарсенный JSON: {items_by_variant}")
-                
-                # ✅ Валидируем и приводим к правильному формату
-                validated_items = {}
-                for variant, items in items_by_variant.items():
-                    if isinstance(items, list):
-                        validated_list = []
-                        for item in items:
-                            if isinstance(item, dict):
-                                validated_list.append({
-                                    "name": item.get("name", str(item)),
-                                    "quantity": item.get("quantity", "1 шт")
-                                })
-                            elif isinstance(item, str):
-                                validated_list.append({
-                                    "name": item,
-                                    "quantity": "1 шт"
-                                })
-                            else:
-                                validated_list.append({
-                                    "name": str(item),
-                                    "quantity": "1 шт"
-                                })
-                        validated_items[variant] = validated_list
-                    else:
-                        validated_items[variant] = [
-                            {"name": str(items), "quantity": "1 шт"}
-                        ]
-                
-                return {
-                    "success": True, 
-                    "items_by_variant": validated_items, 
-                    "tokens": result.get("tokens", 0)
-                }
-            except json.JSONDecodeError as e:
-                print(f"⚠️ Ошибка парсинга JSON: {e}")
-                print(f"Ответ AI: {result['response']}")
-                return _fallback_shopping_list(plan)
-        else:
-            return {"success": False, "items_by_variant": {}, "error": result.get("error", "Ошибка API")}
-            
+        # Сохраняем список в БД
+        items_by_variant = {"cur_list": items}
+        db.save_shopping_list(user_id, items_by_variant)
+        
+        return 0
+        
+    except json.JSONDecodeError as e:
+        print(f"⚠️ERROR: Ошибка парсинга JSON для списка покупок: {e}")
+        print(f"Ответ AI: {result.get('response', '')[:500]}")
+        
+        os.makedirs("logs", exist_ok=True)
+        with open("logs/error_shopping_list_ai.txt", "w", encoding="utf-8") as f:
+            f.write(result.get('response', ''))
+        
+        fallback_items = _fallback_shopping_list(plan)
+        db.shopping_lists.save_list(user_id, {"items": fallback_items.get("items", [])})
+        return 1
+        
     except Exception as e:
-        print(f"❌ Критическая ошибка: {e}")
-        return {"success": False, "items_by_variant": {}, "error": str(e)}
+        print(f"⚠️ERROR: Критическая ошибка при генерации списка покупок: {e}")
+        
+        fallback_items = _fallback_shopping_list(plan)
+        db.shopping_lists.save_list(user_id, {"items": fallback_items.get("items", [])})
+        return 1
+
 
 
 

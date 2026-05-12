@@ -5,6 +5,8 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from bot_backend.handlers.nutrition import handle_nutrition_callback, handle_week_plan_callback
+from bot_backend.handlers.reminders import handle_reminders_menu_callback
 from bot_backend.states import UserState
 from bot_backend.keyboards import get_main_menu_keyboard, get_profile_actions_keyboard
 from database import db
@@ -115,11 +117,7 @@ async def handle_agent_chat_start(update: Update, context: ContextTypes.DEFAULT_
 
 async def handle_quick_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик быстрых действий с главного меню (Inline кнопки)"""
-    from bot_backend.handlers.nutrition import handle_nutrition, handle_week_plan
-    from bot_backend.handlers.profile import show_profile
-    from bot_backend.handlers.reminders import handle_reminders_navigation
-    from bot_backend.keyboards import get_main_menu_keyboard
-    from database import db
+   
     
     query = update.callback_query
     await query.answer()
@@ -127,23 +125,13 @@ async def handle_quick_actions(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = update.effective_user.id
     
     if query.data == "quick_create_plan":
-        # Вызываем существующую функцию handle_nutrition
-        # Она сама отправит нужное сообщение и вернет состояние
-        return await handle_nutrition(update, context)
+        return await handle_nutrition_callback(query, context, user_id)
         
     elif query.data == "quick_show_plan":
-        # Вызываем функцию показа плана
-        return await handle_week_plan(update, context)
+        return await handle_week_plan_callback(query, context, user_id)
         
     elif query.data == "quick_add_reminder":
-        # Устанавливаем флаг и переходим в меню напоминаний
-        context.user_data['from_quick_action'] = True
-        return await handle_reminders_navigation(update, context)
-        
-    elif query.data == "quick_show_profile":
-        # Показываем профиль
-        await show_profile(update, context)
-        return UserState.MAIN_MENU
+        return await handle_reminders_menu_callback(query, context, user_id)
         
     elif query.data == "quick_chat":
         # Переход в чат с AI

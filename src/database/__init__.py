@@ -63,6 +63,10 @@ class Database:
         """Получает активный план"""
         return self.meal_plans.get_active_plan(user_id)
     
+    def save_shopping_list_cache(self, user_id: int, shopping_list: str, plan_hash: str):
+        """Сохраняет кэшированный список покупок"""
+        return self.meal_plans.save_shopping_list_cache(user_id, shopping_list, plan_hash)
+    
     # ==================== РЕЦЕПТЫ ====================
     
     def add_recipe(self, user_id: int, recipe_data: dict) -> int:

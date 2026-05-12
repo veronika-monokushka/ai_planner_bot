@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 async def handle_reminders_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Главное меню напоминалок"""
+    """Главное меню напоминалок (для message updates)"""
     await update.message.reply_text(
         "⏰ УПРАВЛЕНИЕ НАПОМИНАНИЯМИ\n\n"
         "Выбери действие:",
@@ -27,8 +27,18 @@ async def handle_reminders_menu(update: Update, context: ContextTypes.DEFAULT_TY
     return UserState.REMINDERS_MENU
 
 
+async def handle_reminders_menu_callback(query, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    """Главное меню напоминалок (для callback_query updates)"""
+    await query.message.reply_text(
+        "⏰ УПРАВЛЕНИЕ НАПОМИНАНИЯМИ\n\n"
+        "Выбери действие:",
+        reply_markup=get_reminders_main_keyboard()
+    )
+    return UserState.REMINDERS_MENU
+
+
 async def handle_reminders_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Навигация по меню напоминалок"""
+    """Навигация по меню напоминалок (для message updates)"""
     text = update.message.text
     user_id = update.effective_user.id
     

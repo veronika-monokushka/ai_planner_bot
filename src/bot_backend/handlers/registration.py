@@ -72,13 +72,29 @@ def calculate_daily_calories(
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start"""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    
     user_id = update.effective_user.id
     
     if db.user_exists(user_id):
+        name = db.get_user(user_id).get('name', 'друг')
         await update.message.reply_text(
-            f"С возвращением, {db.get_user(user_id).get('name', 'друг')}! 👋\n"
+            f"С возвращением, {name}! 👋\n"
             "Чем займемся сегодня?",
             reply_markup=get_main_menu_keyboard()
+        )
+        
+        # Добавляем быстрые кнопки действий
+        keyboard = [
+            [InlineKeyboardButton("🥗 Создать план питания", callback_data="quick_create_plan")],
+            [InlineKeyboardButton("📅 Мой план питания", callback_data="quick_show_plan")],
+            [InlineKeyboardButton("⏰ Добавить напоминание", callback_data="quick_add_reminder")],
+            [InlineKeyboardButton("💬 Чат с AI", callback_data="quick_chat")],
+        ]
+        
+        await update.message.reply_text(
+            "Выбери действие из меню или спроси у меня 😏",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return UserState.MAIN_MENU
     
@@ -300,8 +316,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
             [InlineKeyboardButton("🥗 Создать план питания", callback_data="quick_create_plan")],
             [InlineKeyboardButton("📅 Мой план питания", callback_data="quick_show_plan")],
             [InlineKeyboardButton("⏰ Добавить напоминание", callback_data="quick_add_reminder")],
-            [InlineKeyboardButton("📊 Мой профиль", callback_data="quick_show_profile")],
-            [InlineKeyboardButton("💬 Чат с AI", callback_data="quick_chat")],
+            [InlineKeyboardButton(" Чат с AI", callback_data="quick_chat")],
         ]
         
         await query.message.reply_text(

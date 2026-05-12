@@ -13,10 +13,8 @@ import asyncio
 # Добавляем путь к проекту для импорта БД
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import db as main_db
-from .agent_class import AgentWithMemory
-from .mistral_llm_api import mistral_llm_client
-from .fallback_answers import _fallback_plan
+from database import db
+from .meals_generator import create_meal_plan_ai, create_shopping_list_ai
 
 
 # ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
@@ -96,7 +94,7 @@ def _get_weekday_ru(dt: datetime) -> str:
     return weekday_map.get(dt.strftime("%A"), '')
 
 
-# ==================== ИНСТРУМЕНТЫ ДЛЯ LLM ====================
+# ==================== НАПОМИНАНИЯ CRUD ====================
 
 @tool
 def create_reminder(
@@ -153,7 +151,7 @@ def create_reminder(
             reminder_data["time"] = reminder_time
         
         # Сохраняем в БД
-        reminder_id = main_db.reminders.add_reminder(user_id, reminder_data)
+        reminder_id = db.reminders.add_reminder(user_id, reminder_data)
         
         # Формируем ответ
         if repeat_type == "once":
@@ -187,13 +185,13 @@ def get_reminders(
     """
     try:
         if reminder_id:
-            reminder = main_db.reminders.get_reminder_by_id(user_id, reminder_id)
+            reminder = db.reminders.get_reminder_by_id(user_id, reminder_id)
             reminders = [reminder] if reminder else []
         else:
             if is_active is False:
-                reminders = main_db.reminders.get_all_reminders(user_id)
+                reminders = db.reminders.get_all_reminders(user_id)
             else:
-                reminders = main_db.reminders.get_reminders(user_id)
+                reminders = db.reminders.get_reminders(user_id)
         
         if not reminders:
             return "📭 У вас нет активных напоминаний."
@@ -242,23 +240,24 @@ def delete_reminder(
         Сообщение о результате удаления
     """
     try:
-        existing = main_db.reminders.get_reminder_by_id(user_id, reminder_id)
+        existing = db.reminders.get_reminder_by_id(user_id, reminder_id)
         if not existing:
             return f"❌ Напоминание с ID {reminder_id} не найдено."
         
         text = existing.get('name', '')
-        main_db.reminders.delete_reminder(user_id, reminder_id)
+        db.reminders.delete_reminder(user_id, reminder_id)
         
         return f"✅ Напоминание '{text}' (ID:{reminder_id}) удалено."
         
     except Exception as e:
         return f"❌ Ошибка при удалении напоминания: {str(e)}"
 
-
+# ==================== MEAL-PLAN CRUD ======================
 @tool
 def generate_meal_plan(
     user_id: int,
     goal: str,
+    preferences_promt: str=None,
     count_days: int = 3,
     use_saved_recipes: bool = False,
     daily_calories: int = 2000,
@@ -272,6 +271,7 @@ def generate_meal_plan(
     Args:
         user_id: ID пользователя в Telegram
         goal: Цель питания ("снижение веса", "набор мышечной массы", "здоровое питание")
+        preferences_promt: промт для llm с дополнительными пожеланиями пользователя, названные в текущем диалоге (не нужно указывать, те которые записаны в базе данных о пользователе)
         count_days: На сколько дней составить план (от 1 до 7)
         use_saved_recipes: true если пользователь хочет использовать "сохраненные" рецепты, false если хочет попробовать "новые"
         daily_calories: Целевая дневная калорийность в ккал (по умолчанию 2000)
@@ -292,130 +292,38 @@ def generate_meal_plan(
         if daily_calories < 800 or daily_calories > 5000:
             return "❌ Дневная калорийность должна быть от 800 до 5000 ккал"
         
-        # Информация о рецептах
-        recipe_note = "(с использованием новых рецептов)" if not use_saved_recipes else "(с использованием ваших сохраненных рецептов)"
-        
-        # Создаем агента
-        agent = AgentWithMemory(llm_client=mistral_llm_client, user_id=user_id)
-        
-        # ✅ Явное указание количества дней в системный промпт
-        system_prompt = f"""Ты — эксперт по питанию. Создай план питания РОВНО НА {count_days} ДНЕЙ.
+        result = create_meal_plan_ai(user_id, goal, preferences_promt, count_days, use_saved_recipes, daily_calories, budget, language)
 
-ВАЖНО: Если запрошен 1 день, создай ТОЛЬКО 1 день! Не создавай больше дней.
-
-Формат ответа - строго JSON без комментариев:
-{{
-  "День 1": {{
-    "завтрак": "Название блюда - X ккал",
-    "обед": "...",
-    "ужин": "...",
-    "перекус": "..."
-  }}
-}}
-"""
-        
-        # ✅ Формируем user_message с запросом
-        user_request = f"""
-Создай план питания на {count_days} день/дней.
-Цель: {goal}
-Калорийность: {daily_calories} ккал/день
-Бюджет: {budget if budget else 'без ограничений'} руб.
-Язык: {language}
-Рецепты: {'из сохраненных' if use_saved_recipes else 'новые'}
-
-ВНИМАНИЕ: Должно быть РОВНО {count_days} дней. Не больше и не меньше!
-"""
-        
-        # ✅ Передаем user_message, а не пустую строку
-        result = agent.ask(
-            user_message=user_request,  # Теперь здесь запрос!
-            system_prompt=system_prompt,
-            max_tokens=2000
-        )
-        
-        if not result.get("success", False):
-            error_msg = result.get("error", "Неизвестная ошибка")
-            fallback_plan_data = _fallback_plan(goal, daily_calories)
-            main_db.meal_plans.save_plan(user_id, {
-                "plan": fallback_plan_data,
-                "goal": goal,
-                "days": count_days,
-                "calories": daily_calories,
-                "budget": budget,
-                "saved_recipes": use_saved_recipes,
-                "is_fallback": True
-            })
-            return f"⚠️ Ошибка при генерации плана: {error_msg}\n\nИспользуется резервный план питания"
-        
-        # Парсим ответ
-        try:
-            plan_data = json.loads(result["response"])
-            
-            # Валидация структуры - проверяем, что есть нужные дни
-            expected_days = [f"День {i+1}" for i in range(count_days)]
-            if not all(day in plan_data for day in expected_days):
-                raise ValueError("Некорректная структура JSON")
-            
-            # Сохраняем план в БД
-            meal_plan_data = {
-                "plan": plan_data,
-                "goal": goal,
-                "days": count_days,
-                "calories": daily_calories,
-                "budget": budget,
-                "saved_recipes": use_saved_recipes,
-                "is_fallback": False
-            }
-            main_db.meal_plans.save_plan(user_id, meal_plan_data)
-            
-            # Форматируем результат для пользователя
-            response = f"✅ План питания создан! \n\n"
-            response += f"📅 На {count_days} дн. | 🔥 {daily_calories} ккал/день"
-            response += f"\n\n"
-            
-            # Форматируем дни плана
-            for day_key in sorted(plan_data.keys(), key=lambda x: int(x.split()[1]) if len(x.split()) > 1 else 0):
-                day_plan = plan_data[day_key]
-                response += f"📍 {day_key}:\n"
-                
-                if isinstance(day_plan, dict):
-                    for meal_type in ['завтрак', 'обед', 'ужин', 'перекус']:
-                        meal = day_plan.get(meal_type, '')
-                        if meal:
-                            response += f"   • {meal_type.capitalize()}: {meal}\n"
-                else:
-                    response += f"   {day_plan}\n"
-                
-            
-            # Добавляем вопрос о соответствии плана
-            response += f"\n\n Подходит ли план или хотите что-то поменять❓"
-            
-            return response
-            
-        except json.JSONDecodeError as e:
-            print(f"⚠️ Ошибка парсинга JSON: {e}")
-            
-            os.makedirs("logs", exist_ok=True)
-            with open("logs/error_ai_answers.txt", "w", encoding="utf-8") as f:
-                f.write(result.get('response', ''))
-            
-            fallback_plan_data = _fallback_plan(goal, daily_calories)
-            main_db.meal_plans.save_plan(user_id, {
-                "plan": fallback_plan_data,
-                "goal": goal,
-                "days": count_days,
-                "calories": daily_calories,
-                "budget": budget,
-                "saved_recipes": use_saved_recipes,
-                "is_fallback": True
-            })
-            return f"⚠️ AI вернул невалидный JSON. Используется резервный план питания"
-        
     except Exception as e:
-        error_text = f"❌ Ошибка при генерации плана питания: {str(e)}"
-        print(error_text)
+        print(f"❌ Ошибка при генерации плана питания: {str(e)}")
+        error_text = "❌ Ошибка при генерации плана питания"
         return error_text
 
+    # Форматируем результат для пользователя
+    meal_plan_data = db.get_active_meal_plan(user_id)
+    plan_data = meal_plan_data['plan']
+
+    response = f"✅ План питания создан! \n\n"
+    response += f"📅 На {count_days} дн. | 🔥 {daily_calories} ккал/день"
+    response += f"\n\n"
+    
+    # Форматируем дни плана
+    for day_key in sorted(plan_data.keys(), key=lambda x: int(x.split()[1]) if len(x.split()) > 1 else 0):
+        day_plan = plan_data[day_key]
+        response += f"📍 {day_key}:\n"
+        
+        if isinstance(day_plan, dict):
+            for meal_type in ['завтрак', 'обед', 'ужин', 'перекус']:
+                meal = day_plan.get(meal_type, '')
+                if meal:
+                    response += f"   • {meal_type.capitalize()}: {meal}\n"
+        else:
+            response += f"   {day_plan}\n"
+        
+    
+    # Добавляем вопрос о соответствии плана
+    response += f"\n\n Подходит ли план или хотите что-то поменять❓"
+    return response
 
 @tool
 def get_meal_plan(
@@ -431,7 +339,7 @@ def get_meal_plan(
         Текущий план питания в читаемом формате или сообщение об отсутствии
     """
     try:
-        meal_plan = main_db.meal_plans.get_active_plan(user_id)
+        meal_plan = db.meal_plans.get_active_plan(user_id)
         
         if not meal_plan:
             return "📭 У вас нет активного плана питания. Создайте новый через команду 'Составить меню'."
@@ -492,20 +400,20 @@ def delete_meal_plan(
         Сообщение о результате удаления
     """
     try:
-        meal_plan = main_db.meal_plans.get_active_plan(user_id)
+        meal_plan = db.meal_plans.get_active_plan(user_id)
         
         if not meal_plan:
             return "❌ Нет активного плана питания для удаления."
         
         # Архивируем план перед удалением
-        main_db.meal_plans.archive_plan(user_id)
+        db.meal_plans.archive_plan(user_id)
         
         # Удаляем активный план
-        data = main_db.meal_plans._load_data()
+        data = db.meal_plans._load_data()
         user_str = str(user_id)
         if user_str in data.get("meal_plans", {}):
             del data["meal_plans"][user_str]
-            main_db.meal_plans._save_data(data)
+            db.meal_plans._save_data(data)
         
         goal = meal_plan.get('goal', 'план питания')
         return f"✅ План питания '{goal}' удален и архивирован."
@@ -514,6 +422,7 @@ def delete_meal_plan(
         return f"❌ Ошибка при удалении плана питания: {str(e)}"
 
 
+# ==================== SHOP LIST ====================
 @tool
 def generate_shopping_list(
     user_id: int
@@ -529,7 +438,7 @@ def generate_shopping_list(
         Список продуктов с общими количествами в читаемом формате
     """
     try:
-        meal_plan = main_db.meal_plans.get_active_plan(user_id)
+        meal_plan = db.meal_plans.get_active_plan(user_id)
         
         if not meal_plan:
             return "❌ Нет активного плана питания. Сначала создайте план через 'Составить меню'."
@@ -539,71 +448,388 @@ def generate_shopping_list(
         if not plan_data:
             return "❌ План питания пуст."
         
-        # Создаем агента для генерации списка покупок
-        agent = AgentWithMemory(llm_client=mistral_llm_client, user_id=user_id)
+        result = create_shopping_list_ai(user_id, plan_data)
+        items = db.get_shopping_list(user_id)['cur_list']
+            
+        # Форматируем результат
+        response = "🛒 СПИСОК ПРОДУКТОВ:\n\n"
         
-        # Формируем текст плана для AI
-        plan_text = "\n".join([f"{day}: {meals}" for day, meals in plan_data.items()])
+        for item in items:
+            name = item.get('name', 'Продукт')
+            quantity = item.get('quantity', '1 шт')
+            response += f"✓ {name} — {quantity}\n"
         
-        system_prompt = """Ты — эксперт по покупкам. Создавай списки покупок ТОЛЬКО в формате JSON.
-Без объяснений, без комментариев, без markdown. Только JSON объект."""
-        
-        prompt = f"""
-На основе этого плана питания создай ОДИН общий список покупок (НЕ по вариантам, а ОДИН список с общим количеством всех продуктов).
-Объедини одинаковые продукты и просумми их количества.
+        return response
+    
+    except Exception as e:
+        print(f'⚠️ERROR: Ошибка при генерации списка покупок: {str(e)}')
+        return (f'Ошибка при генерации списка покупок')
 
-План питания:
-{plan_text}
 
-ФОРМАТ ОТВЕТА (СТРОГО JSON БЕЗ КОММЕНТАРИЕВ):
-{{
-  "items": [
-    {{"name": "Куриное филе", "quantity": "1.5 кг"}},
-    {{"name": "Рис", "quantity": "800 г"}},
-    {{"name": "Помидоры", "quantity": "5 шт"}}
-  ]
-}}
-
-Объедини все одинаковые ингредиенты и сложи количества!
-Не создавай варианты, только ОДИН общий список!"""
+# ==================== РЕЦЕПТЫ CRUD ====================
+@tool
+def add_recipe(
+    user_id: int,
+    name: str,
+    ingredients: str = "",
+    steps: str = "",
+    time_category: str = "средне",
+    price_category: str = "средне",
+    tags: str = "",
+    portions: int = 1
+) -> str:
+    """
+    Добавляет новый рецепт в базу данных пользователя.
+    
+    Args:
+        user_id: ID пользователя в Telegram
+        name: Название рецепта
+        ingredients: Список ингредиентов (можно через запятую или с новой строки)
+        steps: Пошаговый рецепт приготовления
+        time_category: Время приготовления: "быстро", "средне", "долго"
+        price_category: Стоимость: "дешево", "средне", "дорого"
+        tags: Теги через запятую (например, "завтрак, диетическое")
+        portions: Количество порций
+    
+    Returns:
+        Сообщение о результате добавления рецепта
+    """
+    try:
+        # Валидация
+        if not name or len(name.strip()) < 2:
+            return "❌ Название рецепта должно содержать хотя бы 2 символа"
         
-        result = agent.ask(prompt, system_prompt=system_prompt, max_tokens=2000)
+        valid_time_categories = ["быстро", "средне", "долго"]
+        if time_category not in valid_time_categories:
+            return f"❌ Неверная категория времени. Используйте: {', '.join(valid_time_categories)}"
         
-        if not result.get("success", False):
-            error_msg = result.get("error", "Ошибка API")
-            return f"⚠️ Ошибка при генерации списка покупок: {error_msg}"
+        valid_price_categories = ["дешево", "средне", "дорого"]
+        if price_category not in valid_price_categories:
+            return f"❌ Неверная категория цены. Используйте: {', '.join(valid_price_categories)}"
         
-        try:
-            shopping_data = json.loads(result["response"])
-            items = shopping_data.get("items", [])
+        # Преобразуем ингредиенты из строки в список
+        ingredients_list = []
+        if ingredients.strip():
+            # Разбиваем по новой строке или по запятой
+            if '\n' in ingredients:
+                lines = ingredients.strip().split('\n')
+            else:
+                lines = ingredients.strip().split(',')
             
-            if not items:
-                return "❌ Не удалось сгенерировать список покупок"
-            
-            # Сохраняем список в БД
-            items_by_variant = {"Общий список": items}
-            main_db.shopping_lists.save_list(user_id, items_by_variant)
-            
-            # Форматируем результат
-            response = "🛒 СПИСОК ПРОДУКТОВ:\n\n"
-            
-            for item in items:
-                name = item.get('name', 'Продукт')
-                quantity = item.get('quantity', '1 шт')
-                response += f"✓ {name} — {quantity}\n"
-            
-            return response
-            
-        except json.JSONDecodeError as e:
-            print(f"⚠️ Ошибка парсинга JSON для списка покупок: {e}")
-            return f"❌ AI вернул невалидный JSON при генерации списка покупок"
+            for line in lines:
+                line = line.strip()
+                if line:
+                    ingredients_list.append({"name": line, "quantity": "по вкусу"})
+        
+        # Преобразуем теги из строки в список
+        tags_list = [tag.strip() for tag in tags.split(',') if tag.strip()] if tags else []
+        
+        # Формируем данные для БД
+        recipe_data = {
+            "name": name.strip(),
+            "ingredients": ingredients_list,
+            "steps": steps.strip(),
+            "time_category": time_category,
+            "price_category": price_category,
+            "tags": tags_list,
+            "portions": portions
+        }
+        
+        # Сохраняем в БД
+        recipe_id = db.add_recipe(user_id, recipe_data)
+        
+        # Формируем ответ
+        response = f"Рецепт добавлен!\n\n"
+        response += f"📝 {name}\n"
+        response += f"⏱️ Время: {time_category}\n"
+        response += f"💰 Цена: {price_category}\n"
+        
+        if ingredients_list:
+            response += f"\n🥕 Ингредиенты ({len(ingredients_list)}):\n"
+            for ing in ingredients_list[:5]:  # Показываем первые 5
+                response += f"  • {ing['name']}\n"
+            if len(ingredients_list) > 5:
+                response += f"  ... и ещё {len(ingredients_list) - 5}\n"
+        
+        return response
         
     except Exception as e:
-        error_text = f"❌ Ошибка при генерации списка покупок: {str(e)}"
-        print(error_text)
-        return error_text
+        return f"❌ Ошибка при добавлении рецепта: {str(e)}"
 
 
+@tool
+def get_recipes(
+    user_id: int,
+    recipe_id: Optional[int] = None,
+    time_category: Optional[str] = None,
+    price_category: Optional[str] = None,
+    tag: Optional[str] = None,
+    search_query: Optional[str] = None
+) -> str:
+    """
+    Получает список рецептов пользователя с возможностью фильтрации.
+    
+    Args:
+        user_id: ID пользователя в Telegram
+        recipe_id: ID конкретного рецепта (опционально)
+        time_category: Фильтр по времени: "быстро", "средне", "долго"
+        price_category: Фильтр по цене: "дешево", "средне", "дорого"
+        tag: Фильтр по тегу (например, "завтрак")
+        search_query: Поиск по названию
+    
+    Returns:
+        Список рецептов в читаемом формате
+    """
+    try:
+        # Если указан конкретный ID
+        if recipe_id:
+            recipe = db.get_recipe(recipe_id)
+            
+            if not recipe or recipe.get('user_id') != str(user_id):
+                return f"❌ Рецепт с ID {recipe_id} не найден или принадлежит другому пользователю"
+            
+            # Форматируем детальный вывод
+            result = f"📖 {recipe.get('name', 'Без названия')}\n\n"
+            result += f"⏱️ Время: {recipe.get('time_category', '-')}\n"
+            result += f"💰 Цена: {recipe.get('price_category', '-')}\n"
+            result += f"🍽️ Порций: {recipe.get('portions', 1)}\n"
+            
+            tags = recipe.get('tags', [])
+            if tags:
+                result += f"🏷️ Теги: {', '.join(tags)}\n"
+            
+            # Ингредиенты
+            ingredients = recipe.get('ingredients', [])
+            if ingredients:
+                result += f"\n🥕 Ингредиенты:\n"
+                for ing in ingredients:
+                    name = ing.get('name', '')
+                    quantity = ing.get('quantity', '')
+                    if quantity:
+                        result += f"  • {name} — {quantity}\n"
+                    else:
+                        result += f"  • {name}\n"
+            
+            # Шаги приготовления
+            steps = recipe.get('steps', '')
+            if steps:
+                result += f"\n👨‍🍳 Приготовление:\n"
+                # Разбиваем шаги по точкам или переводам строк
+                step_lines = steps.replace('\r', '').split('\n')
+                for i, step in enumerate(step_lines, 1):
+                    if step.strip():
+                        result += f"  {i}. {step.strip()}\n"
+            
+            result += f"\n📅 Создан: {recipe.get('created_at', '?')[:10]}"
+            
+            return result
+        
+        # Получаем все рецепты пользователя
+        recipes = db.get_user_recipes(user_id)
+        
+        if not recipes:
+            return "📭 У вас пока нет рецептов. Добавьте первый через команду 'Добавить рецепт'!"
+        
+        # Применяем фильтры
+        filtered_recipes = recipes.copy()
+        
+        if time_category and time_category != "all":
+            filtered_recipes = [r for r in filtered_recipes if r.get('time_category') == time_category]
+        
+        if price_category and price_category != "all":
+            filtered_recipes = [r for r in filtered_recipes if r.get('price_category') == price_category]
+        
+        if tag and tag != "all":
+            filtered_recipes = [r for r in filtered_recipes if tag in r.get('tags', [])]
+        
+        if search_query:
+            query = search_query.lower()
+            filtered_recipes = [r for r in filtered_recipes if query in r.get('name', '').lower()]
+        
+        if not filtered_recipes:
+            return "📭 Нет рецептов, соответствующих выбранным фильтрам."
+        
+        # Форматируем вывод
+        result = f"📋 МОИ РЕЦЕПТЫ ({len(filtered_recipes)})\n\n"
+        
+        for i, recipe in enumerate(filtered_recipes[:20], 1):
+            name = recipe.get('name', 'Без названия')
+            recipe_id_val = recipe.get('id', '?')
+            time_cat = recipe.get('time_category', '-')
+            price_cat = recipe.get('price_category', '-')
+            
+            # Сокращаем длинные названия
+            if len(name) > 35:
+                name = name[:32] + "..."
+            
+            result += f"{i}. {name}\n"
+            result += f"⏱️{time_cat} | 💰{price_cat}\n\n"
+        
+        if len(filtered_recipes) > 20:
+            result += f"_Показано 20 из {len(filtered_recipes)} рецептов._\n"
+            result += "Используй `recipe_id` для просмотра конкретного рецепта"
+        
+        return result
+        
+    except Exception as e:
+        return f"❌ Ошибка при получении рецептов: {str(e)}"
+
+
+@tool
+def update_recipe(
+    user_id: int,
+    recipe_id: int,
+    name: Optional[str] = None,
+    ingredients: Optional[str] = None,
+    steps: Optional[str] = None,
+    time_category: Optional[str] = None,
+    price_category: Optional[str] = None,
+    tags: Optional[str] = None,
+    portions: Optional[int] = None
+) -> str:
+    """
+    Обновляет существующий рецепт пользователя.
+    
+    Args:
+        user_id: ID пользователя в Telegram
+        recipe_id: ID рецепта для редактирования
+        name: Новое название рецепта
+        ingredients: Новый список ингредиентов
+        steps: Новый пошаговый рецепт
+        time_category: Новая категория времени
+        price_category: Новая категория цены
+        tags: Новые теги через запятую
+        portions: Новое количество порций
+    
+    Returns:
+        Сообщение о результате обновления
+    """
+    try:
+        # Получаем существующий рецепт
+        existing = db.get_recipe(recipe_id)
+        
+        if not existing or existing.get('user_id') != str(user_id):
+            return f"❌ Рецепт с ID {recipe_id} не найден или принадлежит другому пользователю"
+        
+        # Обновляем только переданные поля
+        updated = False
+        
+        if name is not None:
+            if len(name.strip()) < 2:
+                return "❌ Название рецепта должно содержать хотя бы 2 символа"
+            existing['name'] = name.strip()
+            updated = True
+        
+        if ingredients is not None:
+            ingredients_list = []
+            if ingredients.strip():
+                if '\n' in ingredients:
+                    lines = ingredients.strip().split('\n')
+                else:
+                    lines = ingredients.strip().split(',')
+                
+                for line in lines:
+                    line = line.strip()
+                    if line:
+                        ingredients_list.append({"name": line, "quantity": "по вкусу"})
+            existing['ingredients'] = ingredients_list
+            updated = True
+        
+        if steps is not None:
+            existing['steps'] = steps.strip()
+            updated = True
+        
+        if time_category is not None:
+            valid = ["быстро", "средне", "долго"]
+            if time_category not in valid:
+                return f"❌ Неверная категория. Используйте: {', '.join(valid)}"
+            existing['time_category'] = time_category
+            updated = True
+        
+        if price_category is not None:
+            valid = ["дешево", "средне", "дорого"]
+            if price_category not in valid:
+                return f"❌ Неверная категория. Используйте: {', '.join(valid)}"
+            existing['price_category'] = price_category
+            updated = True
+        
+        if tags is not None:
+            tags_list = [tag.strip() for tag in tags.split(',') if tag.strip()] if tags else []
+            existing['tags'] = tags_list
+            updated = True
+        
+        if portions is not None:
+            if portions < 1:
+                return "❌ Количество порций должно быть больше 0"
+            existing['portions'] = portions
+            updated = True
+        
+        if not updated:
+            return "❌ Не указано ни одно поле для обновления"
+        
+        # Сохраняем через add_recipe (перезапись с тем же ID)
+        # В текущей реализации RecipeRepository не имеет update_recipe,
+        # поэтому используем add_recipe, который создаёт новый, или нужно доработать.
+        # Для упрощения: удаляем старый и создаём новый с теми же данными
+        
+        # Временно: сохраняем через пересоздание
+        # Более правильный вариант - добавить метод update_recipe в RecipeRepository
+        recipe_data = {
+            "name": existing['name'],
+            "ingredients": existing.get('ingredients', []),
+            "steps": existing.get('steps', ''),
+            "time_category": existing.get('time_category', 'средне'),
+            "price_category": existing.get('price_category', 'средне'),
+            "tags": existing.get('tags', []),
+            "portions": existing.get('portions', 1)
+        }
+        
+        # Удаляем старый и добавляем новый
+        db.recipes.delete_recipe(user_id, recipe_id)
+        new_id = db.add_recipe(user_id, recipe_data)
+        
+        return f"✅ Рецепт {existing['name']} обновлён"
+        
+    except Exception as e:
+        return f"❌ Ошибка при обновлении рецепта: {str(e)}"
+
+
+@tool
+def delete_recipe(
+    user_id: int,
+    recipe_id: int
+) -> str:
+    """
+    Удаляет рецепт из базы данных.
+    
+    Args:
+        user_id: ID пользователя в Telegram
+        recipe_id: ID рецепта для удаления
+    
+    Returns:
+        Сообщение о результате удаления
+    """
+    try:
+        # Проверяем существование рецепта
+        existing = db.get_recipe(recipe_id)
+        
+        if not existing or existing.get('user_id') != str(user_id):
+            return f"❌ Рецепт с ID {recipe_id} не найден или принадлежит другому пользователю"
+        
+        name = existing.get('name', 'Без названия')
+        
+        # Удаляем
+        success = db.recipes.delete_recipe(user_id, recipe_id)
+        
+        if success:
+            return f"✅ Рецепт {name} удалён."
+        else:
+            return f"❌ Не удалось удалить рецепт. Попробуйте позже."
+        
+    except Exception as e:
+        return f"❌ Ошибка при удалении рецепта: {str(e)}" 
+
+# ==================== ПРЕДПОЧТЕНИЯ ====================
 @tool
 def save_user_preferences(
     user_id: int,
@@ -627,7 +853,7 @@ def save_user_preferences(
             return "❌ Пожалуйста, укажите ваши предпочтения подробнее"
         
         # Получаем пользователя или создаем пустого
-        user_data = main_db.get_user(user_id)
+        user_data = db.get_user(user_id)
         if not user_data:
             user_data = {
                 "user_id": user_id,
@@ -639,7 +865,7 @@ def save_user_preferences(
         user_data["preferences"] = preferences
         user_data["preferences_updated_at"] = datetime.now().isoformat()
         
-        main_db.save_user(user_id, user_data)
+        db.save_user(user_id, user_data)
         
         return f"✅ Ваши предпочтения сохранены! Теперь я буду учитывать это при составлении меню."
         
@@ -659,6 +885,10 @@ ALL_TOOLS = [
     get_meal_plan,
     delete_meal_plan,
     generate_shopping_list,
+    add_recipe,
+    get_recipes,
+    update_recipe,
+    delete_recipe,
     save_user_preferences
 ]
 
@@ -670,47 +900,15 @@ def get_tool_executors():
     Возвращает словарь исполнителей для инструментов.
     Используется в ask_with_tools для автоматической обработки.
     """
-    def reminder_executor(tool_call):
-        """Выполняет инструмент и возвращает (ответ_пользователю, нужно_ли_вызывать_LLM)"""
-        name = tool_call["name"]
-        args = tool_call["args"]
-        
-        if name == "create_reminder":
-            result = create_reminder.invoke(args)
-            return result, False
-        
-        elif name == "get_reminders":
-            result = get_reminders.invoke(args)
-            return result, False
-        
-        elif name == "delete_reminder":
-            result = delete_reminder.invoke(args)
-            return result, False
-        
-        elif name == "generate_meal_plan":
-            result = generate_meal_plan.invoke(args)
-            return result, False
-        
-        elif name == "get_meal_plan":
-            result = get_meal_plan.invoke(args)
-            return result, False
-        
-        elif name == "delete_meal_plan":
-            result = delete_meal_plan.invoke(args)
-            return result, False
-        
-        elif name == "generate_shopping_list":
-            result = generate_shopping_list.invoke(args)
-            return result, False
-        
-        elif name == "save_user_preferences":
-            result = save_user_preferences.invoke(args)
-            return result, False
-        
-        return f"Выполнен инструмент {name}", True
     
     executors = {}
     for tool in ALL_TOOLS:
-        executors[tool.name] = reminder_executor
+        def make_executor(tool_func):
+            def executor(tool_call):
+                result = tool_func.invoke(tool_call["args"])
+                return result, False  # False = не вызывать LLM повторно
+            return executor
+        
+        executors[tool.name] = make_executor(tool)
     
     return executors

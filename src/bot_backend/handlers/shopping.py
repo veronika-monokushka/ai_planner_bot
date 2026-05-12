@@ -8,11 +8,15 @@ from bot_backend.states import UserState
 from bot_backend.keyboards import get_shopping_list_keyboard, get_main_menu_keyboard
 from database import db
 
+from ai_agent.meals_generator import create_shopping_list_ai
+
 logger = logging.getLogger(__name__)
 
 
 async def handle_shopping_list_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Главное меню списка покупок - генерирует список из активного плана"""
+    """Главное меню списка покупок - кэширует список если план не менялся"""
+    import hashlib
+    
     user_id = update.effective_user.id
     
     # Получаем активный план питания
@@ -25,6 +29,23 @@ async def handle_shopping_list_menu(update: Update, context: ContextTypes.DEFAUL
         )
         return UserState.MAIN_MENU
     
+    # Проверяем кэш списка покупок
+    cached_shopping = active_plan.get('shopping_list')
+    cached_plan_hash = active_plan.get('plan_hash')
+    
+    # Вычисляем хеш текущего плана для проверки изменений
+    plan_str = str(active_plan.get('plan', {}))
+    current_plan_hash = hashlib.md5(plan_str.encode()).hexdigest()
+    
+    # Если кэш есть и план не менялся - показываем кэшированный список
+    if cached_shopping and cached_plan_hash == current_plan_hash:
+        await update.message.reply_text(
+            cached_shopping,
+            reply_markup=get_main_menu_keyboard()
+        )
+        return UserState.MAIN_MENU
+    
+    # Если план менялся или нет кэша - регенерируем список
     # Показываем индикатор загрузки
     loading_message = await update.message.reply_text(
         "🤖 AI составляет список покупок...\n"
@@ -33,19 +54,26 @@ async def handle_shopping_list_menu(update: Update, context: ContextTypes.DEFAUL
     )
     
     try:
-        # Вызываем инструмент генерации списка покупок (используя LLM агента)
-        from ai_agent.tools import generate_shopping_list
+        result = create_shopping_list_ai(user_id, active_plan)
+        items = db.get_shopping_list(user_id)['cur_list']
+            
+        # Форматируем результат
+        response = "🛒 СПИСОК ПРОДУКТОВ:\n\n"
         
-        result = generate_shopping_list.invoke({
-            "user_id": user_id
-        })
+        for item in items:
+            name = item.get('name', 'Продукт')
+            quantity = item.get('quantity', '1 шт')
+            response += f"✓ {name} — {quantity}\n"
+
+        # Сохраняем результат в кэш вместе с хешем плана
+        db.save_shopping_list_cache(user_id, response, current_plan_hash)
         
         # Удаляем сообщение о загрузке
         await loading_message.delete()
         
         # Выводим результат
         await update.message.reply_text(
-            result,
+            response,
             reply_markup=get_main_menu_keyboard()
         )
         
