@@ -101,16 +101,33 @@ def create_reminder(
     user_id: int,
     text: str,
     remind_at: str,
-    repeat_type: str = "once"
+    repeat_type: str = "once",
+    from_ai: bool = False
 ) -> str:
     """
     Создает новое напоминание и сохраняет в БД.
+    
+    Используй этот инструмент, когда пользователь просит:
+    - Напомнить о чем-то (выпить воду, поесть, принять витамины)
+    - Поставить таймер или уведомление
+    - Не забыть сделать что-то в определенное время
     
     Args:
         user_id: ID пользователя в Telegram
         text: Текст напоминания (например, "Выпить воду")
         remind_at: Время срабатывания (формат: "15:30", "сегодня в 15:30", "завтра в 10:00")
         repeat_type: Тип повторения: "once", "daily", "weekly"
+        from_ai: Флаг AI-генерации текста напоминания каждый раз.
+            ✅ Ставь True (текст как тема):
+            - "Мотивационное напоминание о позитивном настрое"
+            - "Совет дня по здоровому питанию"
+            - "Напоминание о важности отдыха"
+            
+            ❌ Ставь False (текст как готовый сценарий):
+            - "Выпить воду"
+            - "Принять витамины"  
+            - "Поесть"
+            - "Тренировка в 19:00"
     
     Returns:
         Сообщение о результате создания напоминания
@@ -142,7 +159,8 @@ def create_reminder(
             "name": text,
             "periodicity": repeat_type,
             "active": True,
-            "created_at": datetime.now().isoformat()
+            "created_at": datetime.now().isoformat(),
+            "from_ai": from_ai  # ✅ Добавляем флаг
         }
         
         if repeat_type == "once" and reminder_datetime:
@@ -151,20 +169,21 @@ def create_reminder(
             reminder_data["time"] = reminder_time
         
         # Сохраняем в БД
-        reminder_id = db.reminders.add_reminder(user_id, reminder_data)
+        reminder_id = db.reminders.add_reminder(user_id, reminder_data, from_ai=from_ai)
         
         # Формируем ответ
+        ai_suffix = " с AI-генерацией" if from_ai else ""
+        
         if repeat_type == "once":
             time_str = reminder_datetime.strftime('%d.%m.%Y в %H:%M')
-            return f"✅ Напоминание '{text}' создано!\n Однократное на {time_str}"
+            return f"✅ Напоминание '{text}' создано{ai_suffix}!\n Однократное на {time_str}"
         elif repeat_type == "daily":
-            return f"✅ Напоминание '{text}' создано!\n Ежедневное в {reminder_time}"
+            return f"✅ Напоминание '{text}' создано{ai_suffix}!\n Ежедневное в {reminder_time}"
         else:  # weekly
-            return f"✅ Напоминание '{text}' создано!\n Еженедельное в {reminder_time}"
+            return f"✅ Напоминание '{text}' создано{ai_suffix}!\n Еженедельное в {reminder_time}"
         
     except Exception as e:
         return f"❌ Ошибка при создании напоминания: {str(e)}"
-
 
 @tool
 def get_reminders(
@@ -259,7 +278,7 @@ def generate_meal_plan(
     goal: str,
     preferences_promt: str=None,
     count_days: int = 3,
-    use_saved_recipes: bool = False,
+    use_saved_recipes: bool = True,
     daily_calories: int = 2000,
     budget: Optional[int] = None,
     language: str = "ru"
@@ -479,7 +498,8 @@ def add_recipe(
     portions: int = 1
 ) -> str:
     """
-    Добавляет новый рецепт в базу данных пользователя.
+    Добавляет новый рецепт в базу данных пользователя. Обязательные параметры: user_id, name.
+    Остальное если пользователь не написал не нужно у него спрашивать.
     
     Args:
         user_id: ID пользователя в Telegram
@@ -589,6 +609,7 @@ def get_recipes(
                 return f"❌ Рецепт с ID {recipe_id} не найден или принадлежит другому пользователю"
             
             # Форматируем детальный вывод
+            result += f"🆔 ID: {recipe_id}\n"
             result = f"📖 {recipe.get('name', 'Без названия')}\n\n"
             result += f"⏱️ Время: {recipe.get('time_category', '-')}\n"
             result += f"💰 Цена: {recipe.get('price_category', '-')}\n"
@@ -612,6 +633,7 @@ def get_recipes(
             
             # Шаги приготовления
             steps = recipe.get('steps', '')
+            """
             if steps:
                 result += f"\n👨‍🍳 Приготовление:\n"
                 # Разбиваем шаги по точкам или переводам строк
@@ -619,8 +641,8 @@ def get_recipes(
                 for i, step in enumerate(step_lines, 1):
                     if step.strip():
                         result += f"  {i}. {step.strip()}\n"
-            
-            result += f"\n📅 Создан: {recipe.get('created_at', '?')[:10]}"
+            """
+            #result += f"\n📅 Создан: {recipe.get('created_at', '?')[:10]}"
             
             return result
         
@@ -662,7 +684,7 @@ def get_recipes(
             if len(name) > 35:
                 name = name[:32] + "..."
             
-            result += f"{i}. {name}\n"
+            result += f"ID {recipe_id_val}. {name}\n"
             result += f"⏱️{time_cat} | 💰{price_cat}\n\n"
         
         if len(filtered_recipes) > 20:
@@ -709,7 +731,7 @@ def update_recipe(
         existing = db.get_recipe(recipe_id)
         
         if not existing or existing.get('user_id') != str(user_id):
-            return f"❌ Рецепт с ID {recipe_id} не найден или принадлежит другому пользователю"
+            return f"❌ Рецепт не найден"
         
         # Обновляем только переданные поля
         updated = False

@@ -21,6 +21,13 @@ class AgentWithMemory:
         
         self.system_prompt = get_personalized_system_prompt(user_id)
     
+    def _ensure_non_empty(self, text: str, default: str = "Понял! 🤖 Что-нибудь ещё?") -> str:
+        """Гарантирует, что текст не пустой"""
+        if not text or not text.strip():
+            print("⚠️ WARNING: Пустой ответ LLM")
+            return default
+        return text
+
     def ask(self, user_message: str, system_prompt: str = None, max_tokens: int = None) -> dict:
         """Запрос к агенту с сохранением контекста"""
         
@@ -35,7 +42,7 @@ class AgentWithMemory:
             response = self.client.invoke(self.messages, max_tokens=token_limit)
             
             ai_response = response.content
-            
+            ai_response = self._ensure_non_empty(ai_response)
             # Если требуется JSON, очищаем ответ
             ai_response = self._clean_json_response(ai_response)
             
@@ -84,7 +91,8 @@ class AgentWithMemory:
             
             if hasattr(response, 'tool_calls') and response.tool_calls:
                 # ✅ Сохраняем AIMessage с tool_calls
-                ai_message_with_tools = AIMessage(content=response.content, tool_calls=response.tool_calls)
+                ai_content = response.content or ""
+                ai_message_with_tools = AIMessage(content=ai_content, tool_calls=response.tool_calls)
                 self.messages.append(ai_message_with_tools)
                 self._save_history_to_file()
                 
@@ -114,6 +122,8 @@ class AgentWithMemory:
                     if should_continue_to_llm:
                         second_response = self.client.invoke(self.messages, max_tokens=token_limit)
                         ai_response = second_response.content
+
+                        ai_response = self._ensure_non_empty(ai_response)
                         self.messages.append(AIMessage(content=ai_response))
                         self._save_history_to_file()
                         
@@ -128,6 +138,9 @@ class AgentWithMemory:
                         }
                     else:
                         # ✅ Добавляем финальный AIMessage от имени LLM
+                        if not final_result or not final_result.strip():
+                            print("⚠️ WARNING: Пустой ответ LLM")
+                            final_result = "✅ Готово!"
                         final_ai_message = AIMessage(content=final_result)
                         self.messages.append(final_ai_message)
                         self._save_history_to_file()
@@ -149,6 +162,7 @@ class AgentWithMemory:
             
             # Нет вызовов инструментов
             ai_response = response.content
+            ai_response = self._ensure_non_empty(ai_response)
             ai_response = self._clean_json_response(ai_response)
             self.messages.append(AIMessage(content=ai_response))
             self._save_history_to_file()

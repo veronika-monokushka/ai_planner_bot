@@ -12,6 +12,7 @@ from bot_backend.keyboards import (
     get_reminder_periodicity_keyboard, get_weekdays_inline, get_reminder_actions_inline,
     get_pause_options_inline
 )
+from ai_agent.meals_generator import custom_ai_reminder
 from database import db
 
 logger = logging.getLogger(__name__)
@@ -693,39 +694,50 @@ async def test_reminder_command(update: Update, context: ContextTypes.DEFAULT_TY
         reply_markup=get_reminders_main_keyboard()
     )
 
+
 async def reminder_check(context: ContextTypes.DEFAULT_TYPE):
     """
     Проверка и отправка напоминаний (запускается каждую минуту)
-    Теперь не зависит от формата хранения данных!
     """
     current_time = datetime.now()
     
-    # ✅ Чистый вызов - вся логика внутри репозитория
     due_reminders = db.reminders.get_due_reminders(current_time)
     
     for reminder in due_reminders:
         user_id = reminder['user_id']
         reminder_id = reminder['id']
         
+        from_ai = reminder.get('from_ai', False)
+        print(f"🔔 Отправка напоминания {reminder_id} (from_ai={from_ai})")
+        
         await send_reminder(context.bot, user_id, reminder)
         
-        # Отмечаем как отправленное
         db.reminders.mark_reminder_sent(user_id, reminder_id, current_time)
 
 async def send_reminder(bot, user_id: int, reminder: dict):
     """Отправка напоминания пользователю"""
     name = reminder.get('name', 'Напоминание')
+    from_ai = reminder.get('from_ai', False)
     
-    if "💧" in name or "вода" in name.lower():
-        text = "💧 ПОРА ПИТЬ ВОДУ!\nНапоминаю тебе выпить стакан воды 💧"
-    elif "🍎" in name or "есть" in name.lower():
-        text = "🍎 ВРЕМЯ ПОЕСТЬ!\nНе забывай о правильном питании 🍎"
-    elif "🏋️" in name or "тренировка" in name.lower():
-        text = "🏋️ ВРЕМЯ ТРЕНИРОВКИ!\nПора заняться собой 💪"
-    elif "💊" in name or "витамины" in name.lower():
-        text = "💊 НАПОМИНАНИЕ!\nПрими витамины 💊"
+    # ✅ Если напоминание от AI — генерируем динамический текст
+    if from_ai:
+        try:
+            text = await custom_ai_reminder(user_id, name)
+        except Exception as e:
+            print(f"⚠️ Ошибка генерации AI-напоминания: {e}")
+            text = f"🌟 {name}! Хорошего дня! 💪"
     else:
-        text = f"⏰ НАПОМИНАНИЕ!\n{name}"
+        # Стандартные шаблоны для обычных напоминаний
+        if "💧" in name or "вода" in name.lower():
+            text = "💧 ПОРА ПИТЬ ВОДУ!\nНапоминаю тебе выпить стакан воды 💧"
+        elif "🍎" in name or "есть" in name.lower():
+            text = "🍎 ВРЕМЯ ПОЕСТЬ!\nНе забывай о правильном питании 🍎"
+        elif "🏋️" in name or "тренировка" in name.lower():
+            text = "🏋️ ВРЕМЯ ТРЕНИРОВКИ!\nПора заняться собой 💪"
+        elif "💊" in name or "витамины" in name.lower():
+            text = "💊 НАПОМИНАНИЕ!\nПрими витамины 💊"
+        else:
+            text = f"⏰ НАПОМИНАНИЕ!\n{name}"
     
     try:
         await bot.send_message(

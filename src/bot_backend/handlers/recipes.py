@@ -240,11 +240,9 @@ async def show_recipes_list(update, context, recipes, filter_key, page=0):
     context.user_data['cached_recipes'] = recipes
     context.user_data['current_filter'] = filter_key
     
-    text = f"📚 Найдено рецептов: {len(recipes)}\n\n"
+    text = f"📚 Рецептов: {len(recipes)}\n\n"
     for i, recipe in enumerate(current_recipes, start=start+1):
-        time_emoji = "🥚" if recipe.get('time_category') == 'fast' else "⏲️" if recipe.get('time_category') == 'medium' else "🔥"
-        price_emoji = "💚" if recipe.get('price_category') == 'budget' else "💛" if recipe.get('price_category') == 'medium' else "❤️"
-        text += f"{i}. {time_emoji} {recipe['name']} {price_emoji}\n"
+        text += f"{i}. {recipe['name']}\n"
     
     keyboard = []
     for i, recipe in enumerate(current_recipes):

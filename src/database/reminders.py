@@ -42,8 +42,14 @@ class ReminderRepository(BaseRepository):
         
         return list(data["reminders"][user_str].values())
     
-    def add_reminder(self, user_id: int, reminder_data: Dict) -> int:
-        """Добавляет напоминание"""
+    def add_reminder(self, user_id: int, reminder_data: Dict, from_ai: bool = False) -> int:
+        """Добавляет напоминание
+        
+        Args:
+            user_id: ID пользователя
+            reminder_data: Данные напоминания
+            from_ai: True если напоминание создано AI-агентом (текст будет генерироваться динамически)
+        """
         data = self._load_data()
         user_str = str(user_id)
         
@@ -57,11 +63,12 @@ class ReminderRepository(BaseRepository):
         reminder_data['id'] = reminder_id
         reminder_data['created_at'] = datetime.now().isoformat()
         reminder_data['active'] = True
+        reminder_data['from_ai'] = from_ai  # ✅ Добавляем флаг
         
         data["reminders"][user_str][reminder_id] = reminder_data
         self._save_data(data)
         return int(reminder_id)
-    
+
     def update_reminder(self, user_id: int, reminder_id: int, **kwargs) -> bool:
         """Обновляет напоминание"""
         data = self._load_data()
@@ -74,6 +81,11 @@ class ReminderRepository(BaseRepository):
             return True
         return False
     
+    def get_ai_reminders(self, user_id: int) -> List[Dict]:
+        """Получает AI-напоминания пользователя (from_ai = True)"""
+        reminders = self.get_reminders(user_id)
+        return [r for r in reminders if r.get('from_ai', False)]
+
     def delete_reminder(self, user_id: int, reminder_id: int) -> bool:
         """Удаляет напоминание"""
         data = self._load_data()

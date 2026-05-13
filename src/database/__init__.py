@@ -109,6 +109,10 @@ class Database:
         """Получает напоминания"""
         return self.reminders.get_reminders(user_id)
     
+    def get_user_ai_reminders(self, user_id: int):
+        """Получает напоминания генерируемые динамически LLM"""
+        return self.reminders.get_ai_reminders(user_id)
+
     def add_reminder(self, user_id: int, reminder_data: dict) -> int:
         """Добавляет напоминание"""
         return self.reminders.add_reminder(user_id, reminder_data)

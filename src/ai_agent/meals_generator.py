@@ -9,13 +9,67 @@ from .fallback_answers import _fallback_plan, _fallback_shopping_list
 from database import db
 from typing import Optional
 
+async def custom_ai_reminder(user_id: int, topic: str) -> str:
+    """
+    Генерирует текст напоминания по заданной теме с помощью AI.
     
+    Args:
+        user_id: ID пользователя (для персонализации)
+        topic: Тема напоминания (например, "мотивационное сообщение о позитивном настрое")
+    
+    Returns:
+        Сгенерированный текст напоминания
+    """
+    agent = AgentWithMemory(llm_client=mistral_llm_client, user_id=user_id)
+    
+    system_prompt = """Ты — мотивирующий и дружелюбный помощник. Генерируй короткие, позитивные и вдохновляющие сообщения.
+    
+Правила:
+- Отвечай ТОЛЬКО текстом сообщения (без пояснений, без кавычек)
+- Сообщение должно быть от 1 до 2 предложений
+- Используй эмодзи
+- Обращайся к пользователю на "ты"
+"""
+    
+    user_request = f"""Создай сообщение для напоминания на тему: {topic}"""
+    
+    result = agent.ask(
+        user_message=user_request,
+        system_prompt=system_prompt,
+        max_tokens=200
+    )
+    fallback_remind = "Хорошего дня, не забывай о своих целях! 💪"
+    if result.get("success"):
+        return result.get("response", fallback_remind)
+    else:
+        return fallback_remind
+
+def user_recipe_titles(user_id: int) -> str:
+    """
+    Возвращает строку с названиями рецептов пользователя.
+    
+    Args:
+        user_id: ID пользователя в Telegram
+    
+    Returns:
+        Строка с перечислением названий рецептов для вставки в промпт
+    """
+    recipes = db.get_user_recipes(user_id)
+    
+    if not recipes:
+        return "нет пользовательских рецептов"
+    
+    titles = [recipe.get('name', 'Без названия') for recipe in recipes]
+    
+    # Вариант 1: простая строка
+    return ", ".join(titles)
+
 def create_meal_plan_ai(
     user_id: int,
     goal: str,
     preferences_promt: str=None,
     count_days: int = 3,
-    use_saved_recipes: bool = False,
+    use_saved_recipes: bool = True,
     daily_calories: int = 2000,
     budget: Optional[int] = None,
     language: str = "ru"
@@ -25,7 +79,7 @@ def create_meal_plan_ai(
     возвращает флаг - 0 сгенрирован, 1 fallback-ответ"""
     
     # Информация о рецептах
-    recipe_note = "(с использованием новых рецептов)" if not use_saved_recipes else "(с использованием ваших сохраненных рецептов)"
+    recipe_note = "" if not use_saved_recipes else f"Используй рецепты пользователя, но по 1 разу в неделю каждый: {user_recipe_titles(user_id)}"
     
     # Создаем агента
     agent = AgentWithMemory(llm_client=mistral_llm_client, user_id=user_id)
@@ -54,7 +108,7 @@ def create_meal_plan_ai(
 Язык: {language}
 Рецепты: {'из сохраненных' if use_saved_recipes else 'новые'}
 Предпочтения: {preferences_promt}
-
+{recipe_note}
 ВНИМАНИЕ: Должно быть РОВНО {count_days} дней. Не больше и не меньше!
 """
     
@@ -120,8 +174,6 @@ def create_meal_plan_ai(
         print(f"⚠️ ERROR: Ошибка парсинга JSON: {e}")
         return 1
         
-
-
 def create_shopping_list_ai(
     user_id: int,
     plan: dict,
