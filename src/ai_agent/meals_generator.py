@@ -1,13 +1,16 @@
 # ai_agent/meals_generator.py
 
 import json
-from .agent_class import AgentWithMemory
-from .mistral_llm_api import mistral_llm_client
 import asyncio
 import os
-from .fallback_answers import _fallback_plan, _fallback_shopping_list
 from database import db
 from typing import Optional
+from datetime import datetime
+
+from .agent_class import AgentWithMemory
+from .mistral_llm_api import mistral_llm_client
+from .fallback_answers import _fallback_plan, _fallback_shopping_list
+from .ai_logger import log_parse_error
 
 async def custom_ai_reminder(user_id: int, topic: str) -> str:
     """
@@ -157,9 +160,11 @@ def create_meal_plan_ai(
         return 0
         
     except json.JSONDecodeError as e:
-        os.makedirs("logs", exist_ok=True)
-        with open("logs/error_ai_answers.txt", "w", encoding="utf-8") as f:
-            f.write(result.get('response', ''))
+        log_parse_error(
+            user_id=user_id,
+            raw_response=result.get('response', ''),
+            exception=str(e)
+        )
         
         fallback_plan_data = _fallback_plan(goal, daily_calories, count_days)
         db.meal_plans.save_plan(user_id, {
@@ -254,13 +259,16 @@ def create_shopping_list_ai(
         return 0
         
     except json.JSONDecodeError as e:
-        print(f"⚠️ERROR: Ошибка парсинга JSON для списка покупок: {e}")
+        print(f"⚠️ ERROR: Ошибка парсинга JSON для списка покупок: {e}")
         print(f"Ответ AI: {result.get('response', '')[:500]}")
-        
-        os.makedirs("logs", exist_ok=True)
-        with open("logs/error_shopping_list_ai.txt", "w", encoding="utf-8") as f:
-            f.write(result.get('response', ''))
-        
+
+        # Сохраняем ошибку с новыми функциями
+        log_parse_error(
+            user_id=user_id,
+            raw_response=result.get('response', ''),
+            exception=str(e)
+        )
+
         fallback_items = _fallback_shopping_list(plan)
         db.shopping_lists.save_list(user_id, {"items": fallback_items.get("items", [])})
         return 1

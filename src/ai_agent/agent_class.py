@@ -18,6 +18,7 @@ class AgentWithMemory:
         self.messages = []  # Храним объекты BaseMessage
         self.tokens_used = 0
         self.default_max_tokens = default_max_tokens
+        self.user_id = user_id
         
         self.system_prompt = get_personalized_system_prompt(user_id)
     
@@ -183,46 +184,73 @@ class AgentWithMemory:
                 "tokens": 0
             }
 
-    def _save_history_to_file(self, filename: str = "agent_history.json"):
+    def _save_history_to_file(self, filename: str = None):
         """
-        Сохраняет историю сообщений в файл.
+        Сохраняет историю сообщений в файл (дозаписывает).
         
         Args:
-            filename: Имя файла для сохранения (по умолчанию agent_history.json)
+            filename: Имя файла для сохранения (по умолчанию agent_history_{user_id}.json)
         """
-        
-        
         # Создаем директорию logs, если её нет
         os.makedirs("logs", exist_ok=True)
         
+        # Формируем имя файла с user_id
+        if filename is None:
+            filename = f"agent_history_{self.user_id}.json"
+        
         filepath = os.path.join("logs", filename)
         
-        # Преобразуем сообщения в сериализуемый формат
-        history_data = []
-        for msg in self.messages:
-            msg_data = {
-                "type": type(msg).__name__,
-                "content": msg.content,
-                "timestamp": datetime.now().isoformat()
-            }
-            
-            # Добавляем tool_call_id если есть
-            if hasattr(msg, 'tool_call_id') and msg.tool_call_id:
-                msg_data["tool_call_id"] = msg.tool_call_id
-            
-            # Добавляем tool_calls если есть
-            if hasattr(msg, 'tool_calls') and msg.tool_calls:
-                msg_data["tool_calls"] = msg.tool_calls
-            
-            history_data.append(msg_data)
+        # Преобразуем НОВОЕ сообщение в сериализуемый формат
+        if not self.messages:
+            return
         
-        # Сохраняем в файл
+        # Берем только последнее сообщение (которое только что добавилось)
+        last_msg = self.messages[-1]
+        
+        msg_data = {
+            "type": type(last_msg).__name__,
+            "content": last_msg.content,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Добавляем tool_call_id если есть
+        if hasattr(last_msg, 'tool_call_id') and last_msg.tool_call_id:
+            msg_data["tool_call_id"] = last_msg.tool_call_id
+        
+        # Добавляем tool_calls если есть
+        if hasattr(last_msg, 'tool_calls') and last_msg.tool_calls:
+            # Преобразуем tool_calls в сериализуемый формат
+            msg_data["tool_calls"] = [
+                {
+                    "name": tc.get("name"),
+                    "args": tc.get("args"),
+                    "id": tc.get("id")
+                }
+                for tc in last_msg.tool_calls
+            ]
+        
+        # Дозаписываем в файл
         try:
+            # Читаем существующую историю, если файл есть
+            existing_history = []
+            if os.path.exists(filepath):
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    try:
+                        existing_history = json.load(f)
+                        if not isinstance(existing_history, list):
+                            existing_history = []
+                    except json.JSONDecodeError:
+                        existing_history = []
+            
+            # Добавляем новое сообщение
+            existing_history.append(msg_data)
+            
+            # Сохраняем всю историю обратно
             with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(history_data, f, ensure_ascii=False, indent=2)
+                json.dump(existing_history, f, ensure_ascii=False, indent=2)
+                
         except Exception as e:
             print(f"⚠️ Ошибка сохранения истории: {e}")
-
     
     def ask_with_tools_simple(
         self, 
