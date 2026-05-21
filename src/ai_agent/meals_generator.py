@@ -11,6 +11,7 @@ from .agent_class import AgentWithMemory
 from .mistral_llm_api import mistral_llm_client
 from .fallback_answers import _fallback_plan, _fallback_shopping_list
 from .ai_logger import log_parse_error
+from bot_backend.logger import default_logger as logger
 
 async def custom_ai_reminder(user_id: int, topic: str) -> str:
     """
@@ -133,7 +134,7 @@ def create_meal_plan_ai(
             "saved_recipes": use_saved_recipes,
             "is_fallback": True
         })
-        print(f"ERROR: {error_msg}")
+        logger.error(f"ERROR: {error_msg}")
         return 1
     
     # Парсим ответ
@@ -176,7 +177,7 @@ def create_meal_plan_ai(
             "saved_recipes": use_saved_recipes,
             "is_fallback": True
         })
-        print(f"⚠️ ERROR: Ошибка парсинга JSON: {e}")
+        logger.error(f"⚠️ ERROR: Ошибка парсинга JSON: {e}")
         return 1
         
 def create_shopping_list_ai(
@@ -235,7 +236,7 @@ def create_shopping_list_ai(
     
     if not result.get("success", False):
         error_msg = result.get("error", "Неизвестная ошибка API")
-        print(f"⚠️ERROR: При генерации списка покупок: {error_msg}")
+        logger.error(f"⚠️ERROR: При генерации списка покупок: {error_msg}")
         
         # Используем fallback
         fallback_items = _fallback_shopping_list(plan)
@@ -259,8 +260,8 @@ def create_shopping_list_ai(
         return 0
         
     except json.JSONDecodeError as e:
-        print(f"⚠️ ERROR: Ошибка парсинга JSON для списка покупок: {e}")
-        print(f"Ответ AI: {result.get('response', '')[:500]}")
+        logger.error(f"⚠️ ERROR: Ошибка парсинга JSON для списка покупок: {e}")
+        logger.error(f"Ответ AI: {result.get('response', '')[:500]}")
 
         # Сохраняем ошибку с новыми функциями
         log_parse_error(
@@ -274,12 +275,10 @@ def create_shopping_list_ai(
         return 1
         
     except Exception as e:
-        print(f"⚠️ERROR: Критическая ошибка при генерации списка покупок: {e}")
+        logger.error(f"⚠️ERROR: Критическая ошибка при генерации списка покупок: {e}")
         
         fallback_items = _fallback_shopping_list(plan)
         db.shopping_lists.save_list(user_id, {"items": fallback_items.get("items", [])})
         return 1
-
-
 
 

@@ -1,6 +1,5 @@
 # bot_backend/handlers/shopping.py
 
-import logging
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 
@@ -9,8 +8,8 @@ from bot_backend.keyboards import get_shopping_list_keyboard, get_main_menu_keyb
 from database import db
 
 from ai_agent.meals_generator import create_shopping_list_ai
-
-logger = logging.getLogger(__name__)
+from ai_agent.ai_logger import log_error
+from bot_backend.logger import default_logger as logger
 
 
 async def handle_shopping_list_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -24,7 +23,7 @@ async def handle_shopping_list_menu(update: Update, context: ContextTypes.DEFAUL
     
     if not active_plan:
         await update.message.reply_text(
-            "❌ Сначала создай план питания в разделе 'План на неделю'!",
+            "❌ Сначала создайте план питания в разделе 'План на неделю'!",
             reply_markup=get_main_menu_keyboard()
         )
         return UserState.MAIN_MENU
@@ -78,11 +77,24 @@ async def handle_shopping_list_menu(update: Update, context: ContextTypes.DEFAUL
         )
         
     except Exception as e:
-        logger.error(f"Ошибка при генерации списка покупок: {e}")
+        logger.error(f"ERROR: Ошибка при генерации списка покупок: {e}")
         await loading_message.delete()
+
+        log_error(
+            user_id=user_id,
+            error_text=e,
+            log_type='general'
+        )
+            
+        if '429' in e:
+            response_text = "Превышен лимит запросов в минуту, пожалуйста пишите не так быстро ❄"
+        else:
+            response_text = 'Неизвестная ошибка. Попробуйте пожалуйста снова или введите /start 😇'
+
         await update.message.reply_text(
-            f"❌ Ошибка при генерации списка: {str(e)}",
+            response_text,
             reply_markup=get_main_menu_keyboard()
         )
+        
     
     return UserState.MAIN_MENU

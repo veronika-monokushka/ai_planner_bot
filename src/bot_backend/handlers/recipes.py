@@ -10,7 +10,7 @@ from bot_backend.states import UserState, UserData
 from bot_backend.keyboards import get_back_to_menu_keyboard, get_main_menu_keyboard, get_recipe_actions_inline
 from database import db
 
-logger = logging.getLogger(__name__)
+from bot_backend.logger import default_logger as logger
 
 
 async def handle_recipes_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):

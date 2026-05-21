@@ -14,6 +14,7 @@ from telegram.ext import (
     ConversationHandler
 )
 from telegram.request import HTTPXRequest
+from telegram import Update
 
 # Добавляем текущую директорию в путь
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -47,11 +48,31 @@ from bot_backend.handlers import (
 )
 
 # Настройка логирования
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+from bot_backend.logger import default_logger as logger
+
+
+async def auto_start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Автоматический обработчик сообщений от незарегистрированных пользователей.
+    Запускает регистрацию без необходимости вводить /start.
+    """
+    user_id = update.effective_user.id
+    
+    # Проверяем, зарегистрирован ли пользователь
+    if not db.user_exists(user_id):
+        # Автоматически запускаем регистрацию
+        await update.message.reply_text(
+            "👋 Привет! Я твой персональный помощник в здоровье.\n"
+            "Похоже, ты здесь впервые! Давай быстро зарегистрируемся.\n\n"
+            "Как мне тебя называть? Введи свое имя:"
+        )
+        # Инициализируем регистрацию и переходим к первому шагу
+        from bot_backend.states import UserData
+        UserData.init_registration(context)
+        return UserState.REGISTRATION_NAME
+    
+    # Если пользователь зарегистрирован, отправляем в главное меню
+    return await handle_main_menu(update, context)
 
 
 def main():
@@ -145,15 +166,21 @@ def main():
         ],
     )
     
-    # Регистрация обработчиков
+    # Регистрация обработчиков (порядок ВАЖЕН!)
     application.add_handler(CallbackQueryHandler(handle_recipe_callback, pattern="^(price_|time_|recipe_|increase_|decrease_|add_to_|recipes_page_|back_to_)"))
     application.add_handler(CallbackQueryHandler(handle_weekday_callback, pattern="^weekday_"))
     application.add_handler(CallbackQueryHandler(handle_reminder_callback, pattern="^(reminder_|pause_|back_to_reminder_)"))
-    application.add_handler(CallbackQueryHandler(handle_quick_actions, pattern="^(quick_)"))  # ✅ Обработчик быстрых действий
+    application.add_handler(CallbackQueryHandler(handle_quick_actions, pattern="^(quick_)"))
     application.add_handler(conv_handler)
+    
+    # ✅ Главный обработчик для ВСЕХ текстовых сообщений (должен быть ПОСЛЕДНИМ!)
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_start_handler))
+    
+    # Обработчик неизвестных команд
     application.add_handler(MessageHandler(filters.COMMAND, handle_unknown))
     
     print("🤖 Бот запущен...")
+    print("✅ Автоматическая регистрация включена (можно не писать /start)")
     print("="*40)
     
     application.run_polling(

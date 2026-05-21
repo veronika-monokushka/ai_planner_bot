@@ -7,7 +7,7 @@ from typing import Literal, Optional
 def log_error(
     user_id: int,
     error_text: str,
-    log_type: Literal["ai_response", "parse_error", "api_error", "general"] = "general",
+    log_type: Literal["ai_response", "parse_error", "api_error", "reminder", "general"] = "general",
     mode: Literal["append", "overwrite"] = "append",
     additional_data: Optional[dict] = None
 ) -> str:

@@ -6,13 +6,14 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 from langchain_core.runnables.config import RunnableConfig
 from .config_promts import get_personalized_system_prompt
 from typing import Optional, Dict, Callable, Any
+from bot_backend.logger import default_logger as logger
 
 
 
 class AgentWithMemory:
     """Агент Mistral с памятью диалога и подсчетом токенов"""
     
-    def __init__(self, llm_client, user_id: int, default_max_tokens: int = 500):
+    def __init__(self, llm_client, user_id: int, default_max_tokens: int = 300):
         self.client = llm_client
         self.model = llm_client.model
         self.messages = []  # Храним объекты BaseMessage
@@ -25,7 +26,7 @@ class AgentWithMemory:
     def _ensure_non_empty(self, text: str, default: str = "Понял! 🤖 Что-нибудь ещё?") -> str:
         """Гарантирует, что текст не пустой"""
         if not text or not text.strip():
-            print("⚠️ WARNING: Пустой ответ LLM")
+            logger.error("⚠️ WARNING: Пустой ответ LLM")
             return default
         return text
 

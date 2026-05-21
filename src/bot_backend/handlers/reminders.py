@@ -14,8 +14,9 @@ from bot_backend.keyboards import (
 )
 from ai_agent.meals_generator import custom_ai_reminder
 from database import db
+from ai_agent.ai_logger import log_error
 
-logger = logging.getLogger(__name__)
+from bot_backend.logger import default_logger as logger
 
 
 async def handle_reminders_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -186,7 +187,7 @@ async def add_reminder_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 valid_times.append(t)
             except:
                 await update.message.reply_text(
-                    f"❌ Неверный формат времени '{t}'. Используй ЧЧ:ММ",
+                    f"❌ Неверный формат времени. Используй ЧЧ:ММ",
                     reply_markup=get_back_to_menu_keyboard()
                 )
                 return UserState.ADD_REMINDER_TIME
@@ -679,7 +680,7 @@ async def disable_all_reminders(update: Update, context: ContextTypes.DEFAULT_TY
         db.update_reminder(user_id, int(reminder['id']), active=False)
     
     await update.message.reply_text(
-        "❌ Все напоминания отключены!",
+        "Все напоминания отключены!",
         reply_markup=get_reminders_main_keyboard()
     )
 
@@ -747,7 +748,12 @@ async def send_reminder(bot, user_id: int, reminder: dict):
         )
         print(f"✅ Напоминание отправлено пользователю {user_id}: {name}")
     except Exception as e:
-        print(f"❌ Ошибка отправки напоминания: {e}")
+        log_error(
+            user_id=user_id,
+            error_text=e,
+            log_type='reminder'
+        )
+        print(f"❌ERROR: Ошибка отправки напоминания: {e}")
 
 
 async def setup_reminder_jobs(application):

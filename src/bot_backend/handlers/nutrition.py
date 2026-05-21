@@ -20,7 +20,7 @@ from bot_backend.keyboards import (
 from database import db
 from ai_agent.meals_generator import create_meal_plan_ai
 
-logger = logging.getLogger(__name__)
+from bot_backend.logger import default_logger as logger
 
 
 async def handle_week_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):

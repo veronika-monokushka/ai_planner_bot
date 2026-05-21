@@ -13,8 +13,7 @@ from bot_backend.keyboards import (
 )
 from database import db, calculate_bmi, get_bmi_category
 
-logger = logging.getLogger(__name__)
-
+from bot_backend.logger import default_logger as logger
 
 # Коэффициенты активности
 ACTIVITY_FACTORS = {

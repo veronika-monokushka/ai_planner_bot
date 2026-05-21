@@ -1,19 +1,21 @@
 # bot_backend/handlers/common.py
 """Общие обработчики"""
-
-import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from .utils import recalculate_profile
 from bot_backend.handlers.nutrition import handle_nutrition_callback, handle_week_plan_callback
 from bot_backend.handlers.reminders import handle_reminders_menu_callback
 from bot_backend.states import UserState
 from bot_backend.keyboards import get_main_menu_keyboard, get_profile_actions_keyboard
 from database import db
 
-from .utils import recalculate_profile
-
-logger = logging.getLogger(__name__)
+from ai_agent.agent_class import AgentWithMemory
+from ai_agent.mistral_llm_api import mistral_llm_client
+from ai_agent.tools import ALL_TOOLS, get_tool_executors
+from ai_agent.ai_logger import log_error
+from telegram import KeyboardButton, ReplyKeyboardMarkup
+from bot_backend.logger import default_logger as logger
 
 
 async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -164,25 +166,6 @@ async def handle_unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-from ai_agent.agent_class import AgentWithMemory
-from ai_agent.mistral_llm_api import mistral_llm_client
-from ai_agent.tools import ALL_TOOLS, get_tool_executors
-from telegram import KeyboardButton, ReplyKeyboardMarkup
-
-
-
-# Создаем глобальный экземпляр агента (или можно создавать на пользователя)
-# Для простоты используем глобальный, но учтите, что история диалога будет общей
-_agent = None
-
-"""
-def get_agent():
-    "Ленивая инициализация агента (синглтон)"
-    global _agent
-    if _agent is None:
-        _agent = AgentWithMemory(mistral_llm_client)
-    return _agent
-"""
 
 async def handle_agent_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -194,9 +177,6 @@ async def handle_agent_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Кнопка для выхода из режима агента
     if text == "🤖 Закончить диалог" or text == "🔙 Вернуться в меню":
-        agent_key = f"agent_{user_id}"
-        if agent_key in context.user_data:
-            context.user_data.pop(agent_key, None)
         
         await update.message.reply_text(
             "👋 Возвращаюсь в главное меню! Если захочешь ещё поговорить, просто напиши что-нибудь.",
@@ -227,7 +207,17 @@ async def handle_agent_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if result.get("success"):
         response_text = result.get("response", "Готово!")
     else:
-        response_text = f"❌ Ошибка: {result.get('error', 'Неизвестная ошибка')}"
+        error_text = result.get('error', 'Неизвестная ошибка')
+        log_error(
+            user_id=user_id,
+            error_text=error_text,
+            log_type='general'
+        )
+            
+        if '429' in error_text:
+            response_text = "Превышен лимит запросов в минуту, пожалуйста пишите не так быстро ❄"
+        else:
+            response_text = 'Неизвестная ошибка. Попробуйте пожалуйста снова или введите /start 😇'
     
     # Отправляем ответ пользователю
     await update.message.reply_text(

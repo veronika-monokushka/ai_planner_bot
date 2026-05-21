@@ -3,6 +3,9 @@ import socket
 import ssl
 import httpx
 import requests
+import logging
+
+from bot_backend.logger import default_logger as logger
 
 async def test_connection():
     print("="*60)
@@ -18,7 +21,7 @@ async def test_connection():
         ip = socket.gethostbyname("api.telegram.org")
         print(f"   ✅ DNS работает: api.telegram.org -> {ip}")
     except Exception as e:
-        print(f"   ❌ DNS ошибка: {e}")
+        logger.error(f"❌ DNS ошибка: {e}")
     
     # 2. Проверка TCP соединения
     print("\n2. ПРОВЕРКА TCP СОЕДИНЕНИЯ:")
@@ -29,10 +32,10 @@ async def test_connection():
         if result == 0:
             print("   ✅ TCP порт 443 открыт")
         else:
-            print(f"   ❌ TCP ошибка: {result}")
+            logger.error(f"❌ TCP ошибка: {result}")
         sock.close()
     except Exception as e:
-        print(f"   ❌ Ошибка: {e}")
+        logger.error(f"❌ Ошибка: {e}")
     
     # 3. Проверка SSL сертификата
     print("\n3. ПРОВЕРКА SSL:")
@@ -44,7 +47,7 @@ async def test_connection():
                 print(f"   ✅ SSL работает")
                 print(f"   Сертификат выдан: {cert.get('issuer', 'Unknown')}")
     except Exception as e:
-        print(f"   ❌ SSL ошибка: {e}")
+        logger.error(f"❌ SSL ошибка: {e}")
     
     # 4. Проверка через requests (синхронный)
     print("\n4. ПРОВЕРКА ЧЕРЕЗ REQUESTS:")
@@ -55,7 +58,7 @@ async def test_connection():
         print(f"   Статус: {response.status_code}")
         print(f"   Ответ: {response.json()}")
     except Exception as e:
-        print(f"   ❌ Requests ошибка: {type(e).__name__}: {e}")
+        logger.error(f"❌ Requests ошибка: {type(e).__name__}: {e}")
     
     # 5. Проверка через httpx (async)
     print("\n5. ПРОВЕРКА ЧЕРЕЗ HTTPX (обычный):")
@@ -66,7 +69,7 @@ async def test_connection():
             print(f"   Статус: {response.status_code}")
             print(f"   Ответ: {response.json()}")
     except Exception as e:
-        print(f"   ❌ HTTPX ошибка: {type(e).__name__}: {e}")
+        logger.error(f"❌ HTTPX ошибка: {type(e).__name__}: {e}")
     
     # 6. Проверка через httpx с отключенной SSL
     print("\n6. ПРОВЕРКА ЧЕРЕЗ HTTPX (SSL отключен):")
@@ -77,7 +80,7 @@ async def test_connection():
             print(f"   Статус: {response.status_code}")
             print(f"   Ответ: {response.json()}")
     except Exception as e:
-        print(f"   ❌ HTTPX с verify=False ошибка: {type(e).__name__}: {e}")
+        logger.error(f"❌ HTTPX с verify=False ошибка: {type(e).__name__}: {e}")
     
     # 7. Проверка через curl (если есть)
     print("\n7. ПРОВЕРКА АНТИВИРУСА/БРАНДМАУЭРА:")

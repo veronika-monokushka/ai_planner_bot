@@ -13,7 +13,7 @@ from bot_backend.keyboards import (
 )
 from database import db, get_motivational_message
 
-logger = logging.getLogger(__name__)
+from bot_backend.logger import default_logger as logger
 
 
 async def setup_weighing(update: Update, context: ContextTypes.DEFAULT_TYPE):

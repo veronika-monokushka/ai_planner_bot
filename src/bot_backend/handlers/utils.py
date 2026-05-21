@@ -8,7 +8,7 @@ from telegram.ext import ContextTypes
 from database import db, recalculate_user_data
 from bot_backend.keyboards import get_profile_actions_keyboard
 
-logger = logging.getLogger(__name__)
+from bot_backend.logger import default_logger as logger
 
 
 async def recalculate_profile(update: Update, context: ContextTypes.DEFAULT_TYPE, show_menu=True):

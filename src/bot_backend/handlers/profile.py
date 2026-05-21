@@ -13,7 +13,7 @@ from bot_backend.keyboards import (
 from database import db
 from .utils import recalculate_profile  # ✅ Импортируем из utils
 
-logger = logging.getLogger(__name__)
+from bot_backend.logger import default_logger as logger
 
 
 async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
