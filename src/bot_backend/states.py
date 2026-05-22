@@ -1,3 +1,4 @@
+#bot_backend/states.py
 from telegram.ext import ContextTypes
 
 class UserState:
@@ -16,6 +17,7 @@ class UserState:
     
     # Состояния для плана питания
     AWAITING_BUDGET = 10
+    AWAITING_DAYS_COUNT = 14
     AWAITING_PLAN_GOAL_CHANGE = 11
     
     # Состояния для рецептов

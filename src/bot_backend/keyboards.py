@@ -1,5 +1,8 @@
 from telegram import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 
+MAIN_MENU_BUTTON = "Главное меню"
+END_CHAT_BUTTON = "🤖 Закончить диалог"
+
 # Главное меню
 def get_main_menu_keyboard():
     """Постоянная клавиатура главного меню"""
@@ -26,7 +29,7 @@ def get_goal_keyboard():
     keyboard = [
         [KeyboardButton("⚖️ Похудеть")],
         [KeyboardButton("💪 Набрать мышечную массу")],
-        [KeyboardButton("😊 Просто жить (поддержание)")]
+        [KeyboardButton("😊 Поддерживать вес")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
 
@@ -56,7 +59,18 @@ def get_plan_actions_keyboard():
     """Кнопки действий с планом"""
     keyboard = [
         [KeyboardButton("📝 Создать план")],
-        [KeyboardButton("🔙 Вернуться в меню")]
+        [KeyboardButton(MAIN_MENU_BUTTON)]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
+
+
+def get_days_keyboard():
+    """Клавиатура для выбора количества дней"""
+    keyboard = [
+        [KeyboardButton("1"), KeyboardButton("2"), KeyboardButton("3")],
+        [KeyboardButton("4"), KeyboardButton("5"), KeyboardButton("6")],
+        [KeyboardButton("7")],
+        [KeyboardButton(MAIN_MENU_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
 
@@ -65,7 +79,7 @@ def get_budget_keyboard():
     """Клавиатура для ввода бюджета"""
     keyboard = [
         [KeyboardButton("⏭️ Пропустить")],
-        [KeyboardButton("🔙 Вернуться в меню")]
+        [KeyboardButton(MAIN_MENU_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -73,7 +87,7 @@ def get_budget_keyboard():
 def get_back_to_menu_keyboard():
     """Клавиатура с кнопкой возврата"""
     keyboard = [
-        [KeyboardButton("🔙 Вернуться в меню")]
+        [KeyboardButton(MAIN_MENU_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -98,7 +112,7 @@ def get_profile_actions_keyboard():
         [KeyboardButton("✏️ Редактировать профиль")],
         [KeyboardButton("📊 Пересчитать ИМТ")],
         [KeyboardButton("⚖️ Настроить взвешивание")],
-        [KeyboardButton("🔙 Главное меню")]
+        [KeyboardButton(MAIN_MENU_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -113,7 +127,7 @@ def get_recipes_main_keyboard():
         [KeyboardButton("📚 Все рецепты")],
         [KeyboardButton("➕ Добавить рецепт")],
         [KeyboardButton("🔍 Поиск")],
-        [KeyboardButton("🔙 Назад в меню")]
+        [KeyboardButton(MAIN_MENU_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -178,7 +192,7 @@ def get_reminders_main_keyboard():
         [KeyboardButton("➕ Создать своё напоминание")],
         [KeyboardButton("📋 Мои напоминания")],
         [KeyboardButton("❌ Отключить все")],
-        [KeyboardButton("🔙 Назад в меню")]
+        [KeyboardButton(MAIN_MENU_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -249,7 +263,7 @@ def get_shopping_list_keyboard():
         [KeyboardButton("📝 Собрать список на неделю")],
         [KeyboardButton("📋 Разделить по рецептам")],
         [KeyboardButton("🗑️ Очистить список")],
-        [KeyboardButton("🔙 Назад в меню")]
+        [KeyboardButton(MAIN_MENU_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -278,7 +292,7 @@ def get_agent_chat_keyboard():
     """Клавиатура для режима общения с AI агентом"""
     from telegram import KeyboardButton, ReplyKeyboardMarkup
     keyboard = [
-        [KeyboardButton("🤖 Закончить диалог")]
+        [KeyboardButton(END_CHAT_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -290,7 +304,7 @@ def get_nutrition_menu_keyboard():
     keyboard = [
         [KeyboardButton("📅 План на неделю")],
         [KeyboardButton("📝 Создать план")],
-        [KeyboardButton("🔙 Главное меню")]
+        [KeyboardButton(MAIN_MENU_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 

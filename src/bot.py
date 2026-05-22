@@ -14,14 +14,14 @@ from telegram.ext import (
     ConversationHandler
 )
 from telegram.request import HTTPXRequest
-from telegram import Update
+from telegram import Update, ReplyKeyboardRemove
 
 # Добавляем текущую директорию в путь
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from bot_backend.config import BOT_TOKEN
 from bot_backend.states import UserState
-from bot_backend.keyboards import get_main_menu_keyboard
+from bot_backend.keyboards import get_main_menu_keyboard, MAIN_MENU_BUTTON, END_CHAT_BUTTON
 from database import db
 from bot_backend.handlers.common import handle_agent_chat, handle_quick_actions
 
@@ -44,7 +44,7 @@ from bot_backend.handlers import (
     handle_weekday_callback,
     setup_weighing, handle_weighing_day, handle_weighing_time, handle_weighing_input,
     handle_shopping_list_menu,
-    cancel, handle_unknown, test_reminder_command, setup_reminder_jobs
+    cancel, handle_unknown, test_reminder_command, setup_reminder_jobs, handle_days_count
 )
 
 # Настройка логирования
@@ -62,9 +62,10 @@ async def auto_start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not db.user_exists(user_id):
         # Автоматически запускаем регистрацию
         await update.message.reply_text(
-            "👋 Привет! Я твой персональный помощник в здоровье.\n"
+            "👋 Привет! Я твой персональный помощник в питании Ами.\n"
             "Похоже, ты здесь впервые! Давай быстро зарегистрируемся.\n\n"
-            "Как мне тебя называть? Введи свое имя:"
+            "Как мне тебя называть?",
+            reply_markup=ReplyKeyboardRemove()
         )
         # Инициализируем регистрацию и переходим к первому шагу
         from bot_backend.states import UserData
@@ -96,8 +97,17 @@ def main():
     asyncio.set_event_loop(loop)
     loop.run_until_complete(setup_reminder_jobs(application))
     
+    # Регистрация обработчиков (порядок ВАЖЕН!)
     application.add_handler(CommandHandler('test_reminder', test_reminder_command))
-    
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(MessageHandler(filters.Regex(fr'^{MAIN_MENU_BUTTON}$'), handle_main_menu))
+    application.add_handler(MessageHandler(filters.Regex(fr'^{END_CHAT_BUTTON}$'), handle_agent_chat))
+
+    application.add_handler(CallbackQueryHandler(handle_recipe_callback, pattern="^(price_|time_|recipe_|increase_|decrease_|add_to_|recipes_page_|back_to_)"))
+    application.add_handler(CallbackQueryHandler(handle_weekday_callback, pattern="^weekday_"))
+    application.add_handler(CallbackQueryHandler(handle_reminder_callback, pattern="^(reminder_|pause_|back_to_reminder_)"))
+    application.add_handler(CallbackQueryHandler(handle_quick_actions, pattern="^(quick_)"))
+
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -124,9 +134,12 @@ def main():
             UserState.EDIT_GOAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_goal)],
             
             # Питание
+            UserState.AWAITING_DAYS_COUNT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_days_count)
+            ],
+
             UserState.AWAITING_BUDGET: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_budget),
-                MessageHandler(filters.Regex('^(📝 Создать план|🔙 Вернуться в меню)$'), handle_create_plan)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_budget)
             ],
             
             # Рецепты
@@ -162,15 +175,12 @@ def main():
         },
         fallbacks=[
             CommandHandler('cancel', cancel),
-            MessageHandler(filters.Regex('^(🔙 Вернуться в меню|🔙 Назад в меню|🔙 Главное меню)$'), handle_main_menu)
+            CommandHandler('start', start),
+            MessageHandler(filters.Regex(fr'^{MAIN_MENU_BUTTON}$'), handle_main_menu)
         ],
     )
     
-    # Регистрация обработчиков (порядок ВАЖЕН!)
-    application.add_handler(CallbackQueryHandler(handle_recipe_callback, pattern="^(price_|time_|recipe_|increase_|decrease_|add_to_|recipes_page_|back_to_)"))
-    application.add_handler(CallbackQueryHandler(handle_weekday_callback, pattern="^weekday_"))
-    application.add_handler(CallbackQueryHandler(handle_reminder_callback, pattern="^(reminder_|pause_|back_to_reminder_)"))
-    application.add_handler(CallbackQueryHandler(handle_quick_actions, pattern="^(quick_)"))
+    
     application.add_handler(conv_handler)
     
     # ✅ Главный обработчик для ВСЕХ текстовых сообщений (должен быть ПОСЛЕДНИМ!)

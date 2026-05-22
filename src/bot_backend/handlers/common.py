@@ -7,7 +7,7 @@ from .utils import recalculate_profile
 from bot_backend.handlers.nutrition import handle_nutrition_callback, handle_week_plan_callback
 from bot_backend.handlers.reminders import handle_reminders_menu_callback
 from bot_backend.states import UserState
-from bot_backend.keyboards import get_main_menu_keyboard, get_profile_actions_keyboard
+from bot_backend.keyboards import get_main_menu_keyboard, get_profile_actions_keyboard, MAIN_MENU_BUTTON, END_CHAT_BUTTON
 from database import db
 
 from ai_agent.agent_class import AgentWithMemory
@@ -17,6 +17,9 @@ from ai_agent.ai_logger import log_error
 from telegram import KeyboardButton, ReplyKeyboardMarkup
 from bot_backend.logger import default_logger as logger
 
+Ami_text = ("🌺 Чат с Ами\n\n"
+            "Теперь ты можешь просто писать мне сообщения, и я буду отвечать.\n"
+            "Чтобы выйти из режима, нажми\n '🤖 Закончить диалог'")
 
 async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик главного меню"""
@@ -29,13 +32,15 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if text == "🤖 Спросить агента":
         await update.message.reply_text(
-            "🤖 РЕЖИМ ОБЩЕНИЯ С ИИ-АГЕНТОМ\n\n"
-            "Теперь ты можешь просто писать мне сообщения, и я буду отвечать.\n"
-            "Я помогу с питанием, рецептами, напоминаниями и другими вопросами.\n\n"
-            "Чтобы выйти из режима, нажми '🤖 Закончить диалог'",
+            Ami_text,
             reply_markup=get_agent_chat_keyboard()
         )
         return UserState.CHAT_WITH_AGENT
+
+    # ✅ Если мы ожидаем ввод количества дней, перенаправляем сюда сразу
+    if context.user_data.get('awaiting_days_count'):
+        from .nutrition import handle_days_count
+        return await handle_days_count(update, context)
 
     # ✅ Импортируем здесь, чтобы избежать циклических импортов
     from .nutrition import handle_week_plan, handle_nutrition, handle_create_plan
@@ -63,7 +68,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await handle_reminders_menu(update, context)
     elif text == "📊 Профиль":
         await show_profile(update, context)
-    elif text in ["🔙 Вернуться в меню", "🔙 Назад в меню", "🔙 Главное меню"]:
+    elif text == MAIN_MENU_BUTTON:
         await update.message.reply_text("Главное меню:", reply_markup=get_main_menu_keyboard())
     elif text == "✏️ Редактировать профиль":
         return await edit_profile_menu(update, context)
@@ -83,7 +88,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             # Автоматически переключаемся в режим чата с агентом
             await update.message.reply_text(
-                "Переключаюсь в режим общения с ИИ-агентом...\n\n"
+                "Переключаюсь в режим общения с Ами...\n\n"
                 "Чтобы выйти из режима, нажми '🤖 Закончить диалог'",
                 reply_markup=get_agent_chat_keyboard()
             )
@@ -93,29 +98,20 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return UserState.MAIN_MENU
 
 
-
 async def handle_agent_chat_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Начало чата с AI агентом"""
     query = update.callback_query
     if query:
         await query.message.reply_text(
-            "💬 Чат с AI-помощником\n\n"
-            "Теперь ты можешь задавать мне любые вопросы о питании, "
-            "рецептах, здоровом образе жизни. Я постараюсь помочь!\n\n"
-            "Напиши свой вопрос, а я отвечу.\n\n"
-            "Чтобы выйти из чата, отправь команду /cancel",
+            Ami_text,
             reply_markup=None
         )
     else:
         await update.message.reply_text(
-            "💬 Чат с AI-помощником\n\n"
-            "Задай мне любой вопрос о питании, рецептах или здоровом образе жизни!\n\n"
-            "Чтобы выйти из чата, отправь команду /cancel",
+            Ami_text,
             reply_markup=None
         )
     return UserState.CHAT_WITH_AGENT
-
-# bot_backend/handlers/common.py
 
 async def handle_quick_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик быстрых действий с главного меню (Inline кнопки)"""
@@ -126,10 +122,10 @@ async def handle_quick_actions(update: Update, context: ContextTypes.DEFAULT_TYP
     
     user_id = update.effective_user.id
     
-    if query.data == "quick_create_plan":
+    if query.data == "quick_show_plan":
         return await handle_nutrition_callback(query, context, user_id)
         
-    elif query.data == "quick_show_plan":
+    elif query.data == "quick_create_plan":
         return await handle_week_plan_callback(query, context, user_id)
         
     elif query.data == "quick_add_reminder":
@@ -138,11 +134,7 @@ async def handle_quick_actions(update: Update, context: ContextTypes.DEFAULT_TYP
     elif query.data == "quick_chat":
         # Переход в чат с AI
         await query.message.reply_text(
-            "💬 Чат с AI-помощником\n\n"
-            "Теперь ты можешь задавать мне любые вопросы о питании, "
-            "рецептах, здоровом образе жизни.\n\n"
-            "Напиши свой вопрос!\n\n"
-            "Чтобы выйти, нажми '🤖 Закончить диалог'",
+            Ami_text,
             reply_markup=get_agent_chat_keyboard()
         )
         return UserState.CHAT_WITH_AGENT
@@ -166,7 +158,6 @@ async def handle_unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-
 async def handle_agent_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обработчик сообщений в режиме общения с AI агентом.
@@ -176,7 +167,7 @@ async def handle_agent_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     # Кнопка для выхода из режима агента
-    if text == "🤖 Закончить диалог" or text == "🔙 Вернуться в меню":
+    if text == END_CHAT_BUTTON or text == MAIN_MENU_BUTTON:
         
         await update.message.reply_text(
             "👋 Возвращаюсь в главное меню! Если захочешь ещё поговорить, просто напиши что-нибудь.",

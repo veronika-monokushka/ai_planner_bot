@@ -21,7 +21,7 @@ def setup_logger(name: str = None) -> logging.Logger:
     if logger.hasHandlers():
         return logger
     
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     
     # Формат для сообщений
     formatter = logging.Formatter(
@@ -36,9 +36,9 @@ def setup_logger(name: str = None) -> logging.Logger:
     file_handler.setLevel(logging.WARNING)
     file_handler.setFormatter(formatter)
     
-    # 2. Консольный обработчик (INFO и выше)
+    # 2. Консольный обработчик (DEBUG и выше)
     console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(logging.DEBUG)
     console_handler.setFormatter(formatter)
     
     logger.addHandler(file_handler)

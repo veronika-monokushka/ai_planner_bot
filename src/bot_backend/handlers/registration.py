@@ -4,6 +4,8 @@ import logging
 from datetime import datetime
 from telegram import Update, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, ConversationHandler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
 
 from bot_backend import AGENT_DESCRIPTION
 from bot_backend.states import UserState, UserData
@@ -71,15 +73,13 @@ def calculate_daily_calories(
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start"""
-    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
     
     user_id = update.effective_user.id
     
     if db.user_exists(user_id):
         name = db.get_user(user_id).get('name', 'друг')
         await update.message.reply_text(
-            f"С возвращением, {name}! 👋\n"
-            "Чем займемся сегодня?",
+            f"С возвращением, {name}! 👋",
             reply_markup=get_main_menu_keyboard()
         )
         
@@ -88,19 +88,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🥗 Создать план питания", callback_data="quick_create_plan")],
             [InlineKeyboardButton("📅 Мой план питания", callback_data="quick_show_plan")],
             [InlineKeyboardButton("⏰ Добавить напоминание", callback_data="quick_add_reminder")],
-            [InlineKeyboardButton("💬 Чат с AI", callback_data="quick_chat")],
+            [InlineKeyboardButton("💬 Чат с Ами", callback_data="quick_chat")],
         ]
         
         await update.message.reply_text(
-            "Выбери действие из меню или спроси у меня 😏",
+            "Чем займемся сегодня?",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return UserState.MAIN_MENU
     
     await update.message.reply_text(
-        "👋 Привет! Я твой личный помощник в здоровье.\n"
+        "👋 Привет! Я твой личный помощник в питании Ами.\n"
         "Давай настроим твой профиль. Это займет 1 минуту.\n\n"
-        "Как мне тебя называть? Введи свое имя:",
+        "Как мне тебя называть?",
         reply_markup=ReplyKeyboardRemove()
     )
     
@@ -198,7 +198,7 @@ async def handle_height(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_goal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработка выбора цели"""
     goal = update.message.text
-    valid_goals = ["⚖️ Похудеть", "💪 Набрать мышечную массу", "😊 Просто жить (поддержание)"]
+    valid_goals = ["⚖️ Похудеть", "💪 Набрать мышечную массу", "😊 Поддерживать вес"]
     
     if goal not in valid_goals:
         await update.message.reply_text(
@@ -209,7 +209,6 @@ async def handle_goal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     UserData.set_registration_field(context, 'goal', goal)
     
-    # ✅ Новый шаг: вопрос об активности
     await update.message.reply_text(
         "🏃‍♂️ Какой у тебя уровень физической активности?\n\n"
         "Выбери подходящий вариант:",
@@ -267,6 +266,7 @@ async def handle_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Высокая активность (6-7 раз в неделю)": "Интенсивные тренировки 6-7 раз в неделю"
     }.get(activity, activity)
     
+    # ✅ 1. Убираем клавиатуру активности и показываем итоги с Inline кнопками
     await update.message.reply_text(
         f"📊 ТВОИ ДАННЫЕ:\n\n"
         f"👤 Имя: {data['name']}\n"
@@ -277,10 +277,16 @@ async def handle_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🎯 Цель: {goal}\n"
         f"🏃‍♂️ Активность: {activity_desc}\n\n"
         f"📈 Твой ИМТ: {bmi} ({data['bmi_category']})\n"
-        f"🔥 Дневная норма калорий: ~{calories} ккал ({goal_desc})\n\n"
-        f"Сохраняем профиль?",
+        f"🔥 Дневная норма калорий: ~{calories} ккал ({goal_desc})\n\n",
+        reply_markup=ReplyKeyboardRemove()  # ← убираем клавиатуру активности
+    )
+    
+    # ✅ Показываем Inline кнопки подтверждения
+    await update.message.reply_text(
+        "Сохраняем профиль?",
         reply_markup=get_confirmation_keyboard()
     )
+    
     return UserState.REGISTRATION_CONFIRM
 
 
@@ -302,26 +308,29 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         db.save_user(user_id, data)
         
-        # ✅ Используем константу из __init__.py
-        greeting = f"✨ Приятно познакомиться, {data['name']}! 👋\n\n"
+        # ✅ Приветственное сообщение
         
-        await query.edit_message_text(
+        await query.message.delete()
+
+        # ✅ Отправляем новое сообщение с главным меню
+        greeting = f"✨ Приятно познакомиться, {data['name']}! 👋\n\n"
+        await query.message.reply_text(
             greeting + AGENT_DESCRIPTION,
-            reply_markup=None
+            reply_markup=get_main_menu_keyboard()
         )
         
-        # Клавиатура с вариантами выбора действий
-        keyboard = [
+        # ✅ 2. Показываем Inline кнопки быстрых действий
+        quick_keyboard = [
             [InlineKeyboardButton("🥗 Создать план питания", callback_data="quick_create_plan")],
-            [InlineKeyboardButton("📅 Мой план питания", callback_data="quick_show_plan")],
             [InlineKeyboardButton("⏰ Добавить напоминание", callback_data="quick_add_reminder")],
-            [InlineKeyboardButton(" Чат с AI", callback_data="quick_chat")],
+            [InlineKeyboardButton("💬 Чат с Ами", callback_data="quick_chat")],
         ]
         
         await query.message.reply_text(
-            "Выбери действие из меню или спроси у меня 😏",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            "С чего начнём?",
+            reply_markup=InlineKeyboardMarkup(quick_keyboard)
         )
+        
         return UserState.MAIN_MENU
     else:
         await query.edit_message_text(

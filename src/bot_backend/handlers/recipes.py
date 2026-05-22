@@ -7,7 +7,7 @@ from telegram.ext import ContextTypes
 
 # ИСПРАВЛЕНО: убрал ai_planner_bot.
 from bot_backend.states import UserState, UserData
-from bot_backend.keyboards import get_back_to_menu_keyboard, get_main_menu_keyboard, get_recipe_actions_inline
+from bot_backend.keyboards import get_back_to_menu_keyboard, get_main_menu_keyboard, get_recipe_actions_inline, MAIN_MENU_BUTTON
 from database import db
 
 from bot_backend.logger import default_logger as logger
@@ -25,7 +25,7 @@ async def handle_recipes_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
             [KeyboardButton("📚 Все рецепты")],
             [KeyboardButton("➕ Добавить рецепт")],
             [KeyboardButton("🔍 Поиск")],
-            [KeyboardButton("🔙 Назад в меню")]
+            [KeyboardButton(MAIN_MENU_BUTTON)]
         ], resize_keyboard=True)
     )
     return UserState.RECIPES_MENU
@@ -90,7 +90,7 @@ async def handle_recipes_navigation(update: Update, context: ContextTypes.DEFAUL
                     [KeyboardButton("📚 Все рецепты")],
                     [KeyboardButton("➕ Добавить рецепт")],
                     [KeyboardButton("🔍 Поиск")],
-                    [KeyboardButton("🔙 Назад в меню")]
+                    [KeyboardButton(MAIN_MENU_BUTTON)]
                 ], resize_keyboard=True)
             )
         else:
@@ -113,7 +113,7 @@ async def handle_recipes_navigation(update: Update, context: ContextTypes.DEFAUL
         )
         return UserState.SEARCH_RECIPE
     
-    elif text == "🔙 Назад в меню":
+    elif text == MAIN_MENU_BUTTON:
         await update.message.reply_text(
             "Главное меню:",
             reply_markup=get_main_menu_keyboard()
@@ -130,7 +130,7 @@ async def handle_recipes_navigation(update: Update, context: ContextTypes.DEFAUL
                 [KeyboardButton("📚 Все рецепты")],
                 [KeyboardButton("➕ Добавить рецепт")],
                 [KeyboardButton("🔍 Поиск")],
-                [KeyboardButton("🔙 Назад в меню")]
+                [KeyboardButton(MAIN_MENU_BUTTON)]
             ], resize_keyboard=True)
         )
         return UserState.RECIPES_MENU
@@ -219,7 +219,7 @@ async def handle_recipe_callback(update: Update, context: ContextTypes.DEFAULT_T
                 [KeyboardButton("📚 Все рецепты")],
                 [KeyboardButton("➕ Добавить рецепт")],
                 [KeyboardButton("🔍 Поиск")],
-                [KeyboardButton("🔙 Назад в меню")]
+                [KeyboardButton(MAIN_MENU_BUTTON)]
             ], resize_keyboard=True)
         )
     
@@ -339,7 +339,7 @@ async def show_recipe_card(update, context, recipe, update_message=False):
 
 async def add_recipe_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Добавление названия рецепта"""
-    if update.message.text == "🔙 Вернуться в меню":
+    if update.message.text == MAIN_MENU_BUTTON:
         await update.message.reply_text("Главное меню:", reply_markup=get_main_menu_keyboard())
         return UserState.MAIN_MENU
     
@@ -365,7 +365,7 @@ async def add_recipe_portions(update: Update, context: ContextTypes.DEFAULT_TYPE
             [KeyboardButton("🥚 Быстрый (до 30 мин)")],
             [KeyboardButton("⏲️ Средний (30-60 мин)")],
             [KeyboardButton("🔥 Сложный (более 1 часа)")],
-            [KeyboardButton("🔙 Вернуться в меню")]
+            [KeyboardButton(MAIN_MENU_BUTTON)]
         ]
         
         await update.message.reply_text(
@@ -398,7 +398,7 @@ async def add_recipe_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [KeyboardButton("💰 Бюджетный")],
             [KeyboardButton("💰💰 Средний")],
             [KeyboardButton("💰💰💰 Дорогой")],
-            [KeyboardButton("🔙 Вернуться в меню")]
+            [KeyboardButton(MAIN_MENU_BUTTON)]
         ]
         
         await update.message.reply_text(
@@ -517,7 +517,7 @@ async def add_recipe_steps(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [KeyboardButton("📚 Все рецепты")],
             [KeyboardButton("➕ Добавить рецепт")],
             [KeyboardButton("🔍 Поиск")],
-            [KeyboardButton("🔙 Назад в меню")]
+            [KeyboardButton(MAIN_MENU_BUTTON)]
         ], resize_keyboard=True)
     )
     
@@ -529,7 +529,7 @@ async def search_recipe(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.message.text
     user_id = update.effective_user.id
     
-    if query == "🔙 Вернуться в меню":
+    if query == MAIN_MENU_BUTTON:
         await update.message.reply_text("Главное меню:", reply_markup=get_main_menu_keyboard())
         return UserState.MAIN_MENU
     
@@ -545,7 +545,7 @@ async def search_recipe(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [KeyboardButton("📚 Все рецепты")],
                 [KeyboardButton("➕ Добавить рецепт")],
                 [KeyboardButton("🔍 Поиск")],
-                [KeyboardButton("🔙 Назад в меню")]
+                [KeyboardButton(MAIN_MENU_BUTTON)]
             ], resize_keyboard=True)
         )
     else:

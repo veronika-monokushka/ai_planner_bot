@@ -13,7 +13,7 @@ from .profile import (
 
 from .nutrition import (
     handle_week_plan, handle_nutrition, handle_create_plan, handle_budget,
-    handle_nutrition_callback, handle_week_plan_callback
+    handle_nutrition_callback, handle_week_plan_callback, handle_days_count
 )
 
 from .recipes import (
@@ -60,5 +60,5 @@ __all__ = [
     'handle_reminders_menu_callback',
     'setup_weighing', 'handle_weighing_day', 'handle_weighing_time', 'handle_weighing_input',
     'handle_shopping_list_menu', 'handle_shopping_list_actions',
-    'handle_main_menu', 'recalculate_profile', 'cancel', 'handle_unknown'
+    'handle_main_menu', 'recalculate_profile', 'cancel', 'handle_unknown', 'handle_days_count'
 ]

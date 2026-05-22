@@ -108,7 +108,7 @@ def create_meal_plan_ai(
 Создай план питания на {count_days} день/дней.
 Цель: {goal}
 Калорийность: {daily_calories} ккал/день
-Бюджет: {budget if budget else 'без ограничений'} руб.
+Бюджет на 7 дней: {budget if budget else 'среднии траты'} руб.
 Язык: {language}
 Рецепты: {'из сохраненных' if use_saved_recipes else 'новые'}
 Предпочтения: {preferences_promt}

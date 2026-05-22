@@ -10,7 +10,7 @@ from bot_backend.states import UserState, UserData
 from bot_backend.keyboards import (
     get_back_to_menu_keyboard, get_main_menu_keyboard, get_reminders_main_keyboard,
     get_reminder_periodicity_keyboard, get_weekdays_inline, get_reminder_actions_inline,
-    get_pause_options_inline
+    get_pause_options_inline, MAIN_MENU_BUTTON
 )
 from ai_agent.meals_generator import custom_ai_reminder
 from database import db
@@ -148,7 +148,7 @@ async def handle_reminders_navigation(update: Update, context: ContextTypes.DEFA
         await disable_all_reminders(update, context)
         return UserState.REMINDERS_MENU
     
-    elif text == "🔙 Назад в меню":
+    elif text == MAIN_MENU_BUTTON:
         await update.message.reply_text(
             "Главное меню:",
             reply_markup=get_main_menu_keyboard()
