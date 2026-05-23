@@ -1,3 +1,4 @@
+#bot.py
 import logging
 import asyncio
 import sys
@@ -56,8 +57,30 @@ async def auto_start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     Автоматический обработчик сообщений от незарегистрированных пользователей.
     Запускает регистрацию без необходимости вводить /start.
     """
+    logger.debug("auto_start_handler запущен")
+
     user_id = update.effective_user.id
     
+    # ✅ Получаем текущее состояние пользователя
+    current_state = context.user_data.get('conversation')
+    #context.user_data['conversation'] if 'conversation' in context.user_data.keys  else None
+    
+    # ✅ Пропускаем, если пользователь в активном состоянии ConversationHandler
+    active_states = [
+        UserState.AWAITING_DAYS_COUNT,
+        UserState.AWAITING_BUDGET,
+        UserState.REGISTRATION_NAME,
+        UserState.REGISTRATION_GENDER,
+        UserState.ADD_RECIPE_NAME,
+        UserState.ADD_REMINDER_TIME,
+        UserState.CHAT_WITH_AGENT
+        # ... добавьте все состояния, где нужен ввод от пользователя
+    ]
+    
+    if current_state is not None and current_state in active_states:
+        logger.debug(f"Пользователь {user_id} в состоянии {current_state}, пропускаем auto_start_handler")
+        return
+
     # Проверяем, зарегистрирован ли пользователь
     if not db.user_exists(user_id):
         # Автоматически запускаем регистрацию
@@ -73,6 +96,7 @@ async def auto_start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return UserState.REGISTRATION_NAME
     
     # Если пользователь зарегистрирован, отправляем в главное меню
+    logger.debug("вызываем handle_main_menu из auto_start_handler")
     return await handle_main_menu(update, context)
 
 

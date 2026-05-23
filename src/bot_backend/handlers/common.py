@@ -4,8 +4,8 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from .utils import recalculate_profile
-from bot_backend.handlers.nutrition import handle_nutrition_callback, handle_week_plan_callback
-from bot_backend.handlers.reminders import handle_reminders_menu_callback
+from bot_backend.handlers.nutrition import handle_budget, handle_nutrition_callback, handle_week_plan_callback, handle_days_count, handle_week_plan, handle_nutrition, handle_create_plan
+from bot_backend.handlers.reminders import handle_reminders_menu_callback, handle_reminders_menu
 from bot_backend.states import UserState
 from bot_backend.keyboards import get_main_menu_keyboard, get_profile_actions_keyboard, MAIN_MENU_BUTTON, END_CHAT_BUTTON
 from database import db
@@ -26,10 +26,6 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.effective_user.id
     
-    if not db.user_exists(user_id):
-        await update.message.reply_text("Сначала зарегистрируйся через /start")
-        return UserState.MAIN_MENU
-    
     if text == "🤖 Спросить агента":
         await update.message.reply_text(
             Ami_text,
@@ -39,15 +35,13 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ✅ Если мы ожидаем ввод количества дней, перенаправляем сюда сразу
     if context.user_data.get('awaiting_days_count'):
-        from .nutrition import handle_days_count
         return await handle_days_count(update, context)
+    
+    if context.user_data.get('awaiting_budget'):
+        return await handle_budget(update, context)
 
-    # ✅ Импортируем здесь, чтобы избежать циклических импортов
-    from .nutrition import handle_week_plan, handle_nutrition, handle_create_plan
     from .recipes import handle_recipes_menu
     from .shopping import handle_shopping_list_menu
-
-    from .reminders import handle_reminders_menu
     from .profile import show_profile, edit_profile_menu
     from .weighing import setup_weighing
     
@@ -78,15 +72,14 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await setup_weighing(update, context)
     
     else:
-        # Если сообщение не похоже на кнопку меню → переходим в режим агента
-        # Проверяем, не является ли текст командой или кнопкой
+        # Неизвестные команды
         if text.startswith('/'):
             await update.message.reply_text(
                 "Я не понимаю эту команду. Используй кнопки меню для навигации 👆",
                 reply_markup=get_main_menu_keyboard()
             )
+        # Автоматически переключаемся в режим чата с агентом
         else:
-            # Автоматически переключаемся в режим чата с агентом
             await update.message.reply_text(
                 "Переключаюсь в режим общения с Ами...\n\n"
                 "Чтобы выйти из режима, нажми '🤖 Закончить диалог'",

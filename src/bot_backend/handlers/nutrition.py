@@ -203,8 +203,7 @@ async def handle_days_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "💰 Учтем бюджет на еду?\nВведи сумму в рублях на неделю или нажми 'Пропустить'",
                 reply_markup=get_budget_keyboard()
             )
-            logger.debug("состояние AWAITING_BUDGET из handle_days_count возвращено")
-            context.user_data['conversation'] = UserState.AWAITING_BUDGET
+            context.user_data['awaiting_budget'] = True
             return UserState.AWAITING_BUDGET
             
     except ValueError:
@@ -227,6 +226,7 @@ async def handle_budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ Профиль не найден. Пожалуйста, начните с команды /start",
             reply_markup=get_main_menu_keyboard()
         )
+        context.user_data.pop('awaiting_budget', None)
         return UserState.MAIN_MENU
     
     text = update.message.text
@@ -241,18 +241,16 @@ async def handle_budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_days_keyboard()
         )
         context.user_data['awaiting_days_count'] = True
+        context.user_data.pop('awaiting_budget', None)
         return UserState.AWAITING_DAYS_COUNT
     
     if text == "⏭️ Пропустить":
         budget = None
         # ✅ Сохраняем бюджет в context
+        context.user_data.pop('awaiting_budget', None)
         context.user_data['meal_plan_budget'] = budget
         return await create_meal_plan(update, context, user_id, user_data, count_days, budget)
-        
-    elif text == MAIN_MENU_BUTTON:
-        await update.message.reply_text("Главное меню:", reply_markup=get_main_menu_keyboard())
-        return UserState.MAIN_MENU
-    
+            
     else:
         try:
             budget = float(text)
@@ -264,6 +262,7 @@ async def handle_budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return UserState.AWAITING_BUDGET
             
             # ✅ Сохраняем бюджет в context
+            context.user_data.pop('awaiting_budget', None)
             context.user_data['meal_plan_budget'] = budget
             return await create_meal_plan(update, context, user_id, user_data, count_days, budget)
             
@@ -348,6 +347,7 @@ async def create_meal_plan(
     
     # Убираем флаг ожидания ввода дней на всякий случай
     context.user_data.pop('awaiting_days_count', None)
+    context.user_data.pop('awaiting_budget', None)
 
     await update.message.reply_text(
         "🛒 Хочешь создать список покупок на основе этого плана?",
