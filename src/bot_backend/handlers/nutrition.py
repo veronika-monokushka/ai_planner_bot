@@ -172,6 +172,8 @@ async def handle_nutrition_callback(query, context: ContextTypes.DEFAULT_TYPE, u
 #================================================================================
 async def handle_days_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработка ввода количества дней"""
+    logger.debug("Вызов handle_days_count")
+
     try:
         count_days = int(update.message.text)
         

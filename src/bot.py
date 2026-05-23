@@ -24,7 +24,7 @@ from bot_backend.config import BOT_TOKEN
 from bot_backend.states import UserState
 from bot_backend.keyboards import get_main_menu_keyboard, MAIN_MENU_BUTTON, END_CHAT_BUTTON
 from database import db
-from bot_backend.handlers.common import handle_agent_chat, handle_quick_actions
+from bot_backend.handlers.common import handle_agent_chat, handle_quick_actions, main_menu
 
 
 # Импорты из handlers
@@ -124,7 +124,7 @@ def main():
     # Регистрация обработчиков (порядок ВАЖЕН!)
     application.add_handler(CommandHandler('test_reminder', test_reminder_command))
     application.add_handler(CommandHandler('start', start))
-    application.add_handler(MessageHandler(filters.Regex(fr'^{MAIN_MENU_BUTTON}$'), handle_main_menu))
+    application.add_handler(MessageHandler(filters.Regex(fr'^{MAIN_MENU_BUTTON}$'), main_menu))
     application.add_handler(MessageHandler(filters.Regex(fr'^{END_CHAT_BUTTON}$'), handle_agent_chat))
 
     application.add_handler(CallbackQueryHandler(handle_recipe_callback, pattern="^(price_|time_|recipe_|increase_|decrease_|add_to_|recipes_page_|back_to_)"))
@@ -206,12 +206,10 @@ def main():
     
     
     application.add_handler(conv_handler)
-    
+    application.add_handler(MessageHandler(filters.COMMAND, handle_unknown))
+
     # ✅ Главный обработчик для ВСЕХ текстовых сообщений (должен быть ПОСЛЕДНИМ!)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_start_handler))
-    
-    # Обработчик неизвестных команд
-    application.add_handler(MessageHandler(filters.COMMAND, handle_unknown))
     
     print("🤖 Бот запущен...")
     print("✅ Автоматическая регистрация включена (можно не писать /start)")

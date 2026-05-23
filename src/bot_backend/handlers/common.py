@@ -7,7 +7,7 @@ from .utils import recalculate_profile
 from bot_backend.handlers.nutrition import handle_budget, handle_nutrition_callback, handle_week_plan_callback, handle_days_count, handle_week_plan, handle_nutrition, handle_create_plan
 from bot_backend.handlers.reminders import handle_reminders_menu_callback, handle_reminders_menu
 from bot_backend.states import UserState
-from bot_backend.keyboards import get_main_menu_keyboard, get_profile_actions_keyboard, MAIN_MENU_BUTTON, END_CHAT_BUTTON
+from bot_backend.keyboards import get_main_menu_keyboard, get_profile_actions_keyboard, MAIN_MENU_BUTTON, END_CHAT_BUTTON, get_agent_chat_keyboard
 from database import db
 
 from ai_agent.agent_class import AgentWithMemory
@@ -18,11 +18,16 @@ from telegram import KeyboardButton, ReplyKeyboardMarkup
 from bot_backend.logger import default_logger as logger
 
 Ami_text = ("🌺 Чат с Ами\n\n"
-            "Теперь ты можешь просто писать мне сообщения, и я буду отвечать.\n"
-            "Чтобы выйти из режима, нажми\n '🤖 Закончить диалог'")
+            #"Теперь ты можешь писать мне и я буду отвечать.\n"
+            f"Чтобы выйти из режима, нажми '{END_CHAT_BUTTON}'")
+
+async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Главное меню 👇", reply_markup=get_main_menu_keyboard())
+    return UserState.MAIN_MENU
 
 async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик главного меню"""
+    logger.debug('handle_main_menu запущен')
     text = update.message.text
     user_id = update.effective_user.id
     
@@ -35,6 +40,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ✅ Если мы ожидаем ввод количества дней, перенаправляем сюда сразу
     if context.user_data.get('awaiting_days_count'):
+        logger.debug("Вызов handle_days_count из handle_main_menu")
         return await handle_days_count(update, context)
     
     if context.user_data.get('awaiting_budget'):
@@ -62,8 +68,6 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await handle_reminders_menu(update, context)
     elif text == "📊 Профиль":
         await show_profile(update, context)
-    elif text == MAIN_MENU_BUTTON:
-        await update.message.reply_text("Главное меню:", reply_markup=get_main_menu_keyboard())
     elif text == "✏️ Редактировать профиль":
         return await edit_profile_menu(update, context)
     elif text == "📊 Пересчитать ИМТ":
@@ -72,21 +76,14 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await setup_weighing(update, context)
     
     else:
-        # Неизвестные команды
-        if text.startswith('/'):
-            await update.message.reply_text(
-                "Я не понимаю эту команду. Используй кнопки меню для навигации 👆",
-                reply_markup=get_main_menu_keyboard()
-            )
         # Автоматически переключаемся в режим чата с агентом
-        else:
-            await update.message.reply_text(
-                "Переключаюсь в режим общения с Ами...\n\n"
-                "Чтобы выйти из режима, нажми '🤖 Закончить диалог'",
-                reply_markup=get_agent_chat_keyboard()
-            )
-            # Перенаправляем сообщение агенту
-            return await handle_agent_chat(update, context)
+        await update.message.reply_text(
+            "Переключаюсь в режим общения с Ами...\n\n"
+            "Чтобы выйти из режима, нажми {'🤖 Закончить диалог'}",
+            reply_markup=get_agent_chat_keyboard()
+        )
+        # Перенаправляем сообщение агенту
+        return await handle_agent_chat(update, context)
     
     return UserState.MAIN_MENU
 
@@ -146,7 +143,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработка неизвестных команд"""
     await update.message.reply_text(
-        "Я не понимаю эту команду. Используй меню для навигации 👆",
+        "Я не понимаю эту команду. Используй меню для навигации 👇",
         reply_markup=get_main_menu_keyboard()
     )
 
@@ -210,10 +207,3 @@ async def handle_agent_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     
     return UserState.CHAT_WITH_AGENT
-
-def get_agent_chat_keyboard():
-    """Клавиатура для режима общения с агентом"""
-    keyboard = [
-        [KeyboardButton("🤖 Закончить диалог")]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
