@@ -2,17 +2,30 @@ from telegram import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, 
 
 MAIN_MENU_BUTTON = "Главное меню"
 END_CHAT_BUTTON = "🤖 Закончить диалог"
+CREATE_PLAN_BUTTON = "🥗 Создать меню"
+SHOW_PLAN_BUTTON = "🍎 Моё питание"
+BACK_BUTTON = "🔙 Назад"
+
 
 # Главное меню
 def get_main_menu_keyboard():
     """Постоянная клавиатура главного меню"""
     keyboard = [
-        [KeyboardButton("📅 План на неделю")],
-        [KeyboardButton("🍎 Питание")],
+        #[KeyboardButton("📅 План на неделю")],
+        [KeyboardButton(SHOW_PLAN_BUTTON)],
         [KeyboardButton("📝 Мои рецепты"), KeyboardButton("📋 Список покупок")],
         [KeyboardButton("💧 Напоминалки"), KeyboardButton("📊 Профиль"), KeyboardButton("🤖 Спросить агента")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_quick_menu_keyboard():
+    keyboard = [
+        #[InlineKeyboardButton(CREATE_PLAN_BUTTON, callback_data="quick_create_plan")],
+        [InlineKeyboardButton(SHOW_PLAN_BUTTON, callback_data="quick_show_plan")],
+        [InlineKeyboardButton("⏰ Добавить напоминание", callback_data="quick_add_reminder")],
+        [InlineKeyboardButton("💬 Чат с Ами", callback_data="quick_chat")],
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 # Кнопки для выбора пола
 def get_gender_keyboard():
@@ -58,7 +71,7 @@ def get_activity_keyboard():
 def get_plan_actions_keyboard():
     """Кнопки действий с планом"""
     keyboard = [
-        [KeyboardButton("📝 Создать план")],
+        [KeyboardButton(CREATE_PLAN_BUTTON)],
         [KeyboardButton(MAIN_MENU_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
@@ -121,12 +134,12 @@ def get_profile_actions_keyboard():
 def get_recipes_main_keyboard():
     """Главное меню рецептов"""
     keyboard = [
-        [KeyboardButton("🥚 Быстрые (до 30 мин)")],
-        [KeyboardButton("⏲️ Средние (30-60 мин)")],
-        [KeyboardButton("🔥 Сложные (более 1 часа)")],
+        [KeyboardButton("🥪 Быстрые")],
+        [KeyboardButton("🍛 Средние")],
+        #[KeyboardButton("🔥 Сложные (более 1 часа)")],
         [KeyboardButton("📚 Все рецепты")],
         [KeyboardButton("➕ Добавить рецепт")],
-        [KeyboardButton("🔍 Поиск")],
+        #[KeyboardButton("🔍 Поиск")],
         [KeyboardButton(MAIN_MENU_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -140,23 +153,21 @@ def get_price_category_inline(time_category):
             InlineKeyboardButton("❤️ Дорогие", callback_data=f"price_expensive_{time_category}")
         ],
         [InlineKeyboardButton("🎲 Все", callback_data=f"price_all_{time_category}")],
-        [InlineKeyboardButton("🔙 Назад", callback_data="back_to_recipes")]
+        [InlineKeyboardButton(BACK_BUTTON, callback_data="back_to_recipes")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
 def get_recipe_actions_inline(recipe_id):
     """Инлайн кнопки для действий с рецептом"""
     keyboard = [
-        [
-            InlineKeyboardButton("➖", callback_data=f"decrease_portions_{recipe_id}"),
-            InlineKeyboardButton("4", callback_data="no_action"),
-            InlineKeyboardButton("➕", callback_data=f"increase_portions_{recipe_id}")
-        ],
+            #[InlineKeyboardButton("➖", callback_data=f"decrease_portions_{recipe_id}"),
+            #InlineKeyboardButton("4", callback_data="no_action"),
+            #InlineKeyboardButton("➕", callback_data=f"increase_portions_{recipe_id}")],
         [
             InlineKeyboardButton("✅ В план", callback_data=f"add_to_plan_{recipe_id}"),
             InlineKeyboardButton("📋 В список", callback_data=f"add_to_shopping_{recipe_id}")
         ],
-        [InlineKeyboardButton("🔙 Назад к списку", callback_data="back_to_recipes_list")]
+        [InlineKeyboardButton(BACK_BUTTON, callback_data="back_to_recipes_list")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -174,7 +185,7 @@ def get_pagination_keyboard(page, total_pages, prefix):
         row.append(InlineKeyboardButton("▶️", callback_data=f"{prefix}_page_{page+1}"))
     
     keyboard.append(row)
-    keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_recipes")])
+    keyboard.append([InlineKeyboardButton(BACK_BUTTON, callback_data="back_to_recipes")])
     
     return InlineKeyboardMarkup(keyboard)
 
@@ -184,12 +195,12 @@ def get_reminders_main_keyboard():
     """Главное меню напоминалок"""
     keyboard = [
         [KeyboardButton("💧 Пить воду")],
-        [KeyboardButton("🍎 Поесть")],
+        #[KeyboardButton("🍎 Поесть")],
         [KeyboardButton("🏋️ Тренировка")],
-        [KeyboardButton("💊 Принять витамины")],
-        [KeyboardButton("🛏️ Проснуться")],
+        #[KeyboardButton("💊 Принять витамины")],
+        #[KeyboardButton("🛏️ Проснуться")],
         [KeyboardButton("🌙 Лечь спать")],
-        [KeyboardButton("➕ Создать своё напоминание")],
+        [KeyboardButton("➕ Создать своё")],
         [KeyboardButton("📋 Мои напоминания")],
         [KeyboardButton("❌ Отключить все")],
         [KeyboardButton(MAIN_MENU_BUTTON)]
@@ -203,7 +214,7 @@ def get_reminder_periodicity_keyboard():
         [KeyboardButton("Раз в несколько часов")],
         [KeyboardButton("По дням недели")],
         [KeyboardButton("Один раз")],
-        [KeyboardButton("🔙 Назад")]
+        [KeyboardButton(BACK_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -236,7 +247,7 @@ def get_reminder_actions_inline(reminder_id):
             InlineKeyboardButton("✏️ Изменить", callback_data=f"reminder_edit_{reminder_id}"),
             InlineKeyboardButton("🔕 Отключить", callback_data=f"reminder_disable_{reminder_id}")
         ],
-        [InlineKeyboardButton("🔙 Назад", callback_data="back_to_reminders")]
+        [InlineKeyboardButton(BACK_BUTTON, callback_data="back_to_reminders")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -251,11 +262,26 @@ def get_pause_options_inline(reminder_id):
             InlineKeyboardButton("1 неделя", callback_data=f"pause_1w_{reminder_id}"),
             InlineKeyboardButton("1 месяц", callback_data=f"pause_1m_{reminder_id}")
         ],
-        [InlineKeyboardButton("🔙 Назад", callback_data=f"back_to_reminder_{reminder_id}")]
+        [InlineKeyboardButton(BACK_BUTTON, callback_data=f"back_to_reminder_{reminder_id}")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
+def get_food_time_keyboard():
+    keyboard = [
+        [KeyboardButton("08:00, 13:00, 19:00")],
+        [KeyboardButton("09:00, 14:00, 20:00")],
+        [KeyboardButton(BACK_BUTTON)]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
 # ======================== КЛАВИАТУРЫ ДЛЯ СПИСКА ПОКУПОК ========================
+
+def get_confirm_generate_list_keyboard():
+    keyboard = [
+            [KeyboardButton("✅ Да, создать список")],
+            [KeyboardButton(MAIN_MENU_BUTTON)]
+        ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_shopping_list_keyboard():
     """Клавиатура для списка покупок"""
@@ -284,7 +310,7 @@ def get_weighing_actions_keyboard():
     keyboard = [
         [KeyboardButton("🔔 Напомнить позже")],
         [KeyboardButton("⏭️ Пропустить эту неделю")],
-        [KeyboardButton("🔙 Назад")]
+        [KeyboardButton(BACK_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -297,13 +323,12 @@ def get_agent_chat_keyboard():
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
-# bot_backend/keyboards.py
 
 def get_nutrition_menu_keyboard():
     """Клавиатура меню питания"""
     keyboard = [
         [KeyboardButton("📅 План на неделю")],
-        [KeyboardButton("📝 Создать план")],
+        [KeyboardButton(CREATE_PLAN_BUTTON)],
         [KeyboardButton(MAIN_MENU_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -317,6 +342,6 @@ def get_reminder_type_keyboard():
         [KeyboardButton("💊 Витамины")],
         [KeyboardButton("🏃 Тренировка")],
         [KeyboardButton("✏️ Своё напоминание")],
-        [KeyboardButton("🔙 Назад")]
+        [KeyboardButton(BACK_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)

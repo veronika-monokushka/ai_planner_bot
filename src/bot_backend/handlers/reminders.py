@@ -10,11 +10,12 @@ from bot_backend.states import UserState, UserData
 from bot_backend.keyboards import (
     get_back_to_menu_keyboard, get_main_menu_keyboard, get_reminders_main_keyboard,
     get_reminder_periodicity_keyboard, get_weekdays_inline, get_reminder_actions_inline,
-    get_pause_options_inline, MAIN_MENU_BUTTON
+    get_pause_options_inline, MAIN_MENU_BUTTON, get_food_time_keyboard, BACK_BUTTON
 )
 from ai_agent.meals_generator import custom_ai_reminder
 from database import db
 from ai_agent.ai_logger import log_error
+from .utils import main_menu
 
 from bot_backend.logger import default_logger as logger
 
@@ -32,8 +33,7 @@ async def handle_reminders_menu(update: Update, context: ContextTypes.DEFAULT_TY
 async def handle_reminders_menu_callback(query, context: ContextTypes.DEFAULT_TYPE, user_id: int):
     """Главное меню напоминалок (для callback_query updates)"""
     await query.message.reply_text(
-        "⏰ УПРАВЛЕНИЕ НАПОМИНАНИЯМИ\n\n"
-        "Выбери действие:",
+        "⏰ Выбери напоминание 👇",
         reply_markup=get_reminders_main_keyboard()
     )
     return UserState.REMINDERS_MENU
@@ -53,7 +53,7 @@ async def handle_reminders_navigation(update: Update, context: ContextTypes.DEFA
             reply_markup=ReplyKeyboardMarkup([
                 [KeyboardButton("Каждые 2 часа с 09:00 до 21:00")],
                 [KeyboardButton("09:00, 12:00, 15:00, 18:00, 21:00")],
-                [KeyboardButton("🔙 Назад")]
+                [KeyboardButton(BACK_BUTTON)]
             ], resize_keyboard=True)
         )
         context.user_data['reminder_type'] = 'water'
@@ -62,13 +62,9 @@ async def handle_reminders_navigation(update: Update, context: ContextTypes.DEFA
     elif text == "🍎 Поесть":
         await update.message.reply_text(
             "🍎 НАПОМИНАНИЕ О ЕДЕ\n\n"
-            "В какое время напоминать о еде? (в формате ЧЧ:ММ)\n"
-            "Например: 08:00 (завтрак), 13:00 (обед), 19:00 (ужин)",
-            reply_markup=ReplyKeyboardMarkup([
-                [KeyboardButton("08:00, 13:00, 19:00")],
-                [KeyboardButton("09:00, 14:00, 20:00")],
-                [KeyboardButton("🔙 Назад")]
-            ], resize_keyboard=True)
+            "В какое время напоминать о еде? (в формате ЧЧ:ММ)\n",
+            #"Например: 08:00 (завтрак), 13:00 (обед), 19:00 (ужин)",
+            reply_markup=get_food_time_keyboard()
         )
         context.user_data['reminder_type'] = 'meal'
         return UserState.ADD_REMINDER_TIME
@@ -81,7 +77,7 @@ async def handle_reminders_navigation(update: Update, context: ContextTypes.DEFA
                 [KeyboardButton("18:00")],
                 [KeyboardButton("19:30")],
                 [KeyboardButton("20:00")],
-                [KeyboardButton("🔙 Назад")]
+                [KeyboardButton(BACK_BUTTON)]
             ], resize_keyboard=True)
         )
         context.user_data['reminder_type'] = 'workout'
@@ -96,7 +92,7 @@ async def handle_reminders_navigation(update: Update, context: ContextTypes.DEFA
                 [KeyboardButton("08:00")],
                 [KeyboardButton("09:00")],
                 [KeyboardButton("10:00")],
-                [KeyboardButton("🔙 Назад")]
+                [KeyboardButton(BACK_BUTTON)]
             ], resize_keyboard=True)
         )
         context.user_data['reminder_type'] = 'vitamins'
@@ -110,7 +106,7 @@ async def handle_reminders_navigation(update: Update, context: ContextTypes.DEFA
                 [KeyboardButton("07:00")],
                 [KeyboardButton("08:00")],
                 [KeyboardButton("09:00")],
-                [KeyboardButton("🔙 Назад")]
+                [KeyboardButton(BACK_BUTTON)]
             ], resize_keyboard=True)
         )
         context.user_data['reminder_type'] = 'wakeup'
@@ -124,20 +120,20 @@ async def handle_reminders_navigation(update: Update, context: ContextTypes.DEFA
                 [KeyboardButton("22:00")],
                 [KeyboardButton("23:00")],
                 [KeyboardButton("00:00")],
-                [KeyboardButton("🔙 Назад")]
+                [KeyboardButton(BACK_BUTTON)]
             ], resize_keyboard=True)
         )
         context.user_data['reminder_type'] = 'sleep'
         return UserState.ADD_REMINDER_TIME
     
-    elif text == "➕ Создать своё напоминание":
+    elif text == "➕ Создать своё":
         UserData.init_reminder(context)
         await update.message.reply_text(
             "✨ СОЗДАНИЕ НАПОМИНАНИЯ\n\n"
-            "Введи название напоминания\n"
-            "(например: 'Полить цветы', 'Позвонить маме')",
+            "Введи название, например: 'Полить цветы', 'Позвонить маме'",
             reply_markup=get_back_to_menu_keyboard()
         )
+        context.user_data['reminder_type'] = 'custom'
         return UserState.ADD_REMINDER_NAME
     
     elif text == "📋 Мои напоминания":
@@ -149,15 +145,11 @@ async def handle_reminders_navigation(update: Update, context: ContextTypes.DEFA
         return UserState.REMINDERS_MENU
     
     elif text == MAIN_MENU_BUTTON:
-        await update.message.reply_text(
-            "Главное меню:",
-            reply_markup=get_main_menu_keyboard()
-        )
-        return UserState.MAIN_MENU
+        return await main_menu(update)
     
     else:
         await update.message.reply_text(
-            "Используй кнопки меню 👆",
+            "Используй кнопки меню 👇",
             reply_markup=get_reminders_main_keyboard()
         )
         return UserState.REMINDERS_MENU
@@ -168,7 +160,10 @@ async def add_reminder_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     time_str = update.message.text
     user_id = update.effective_user.id
     
-    if time_str == "🔙 Назад":
+    if time_str == MAIN_MENU_BUTTON:
+        return await main_menu(update)
+
+    if time_str == BACK_BUTTON:
         await update.message.reply_text(
             "Выбери действие:",
             reply_markup=get_reminders_main_keyboard()
@@ -188,7 +183,7 @@ async def add_reminder_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except:
                 await update.message.reply_text(
                     f"❌ Неверный формат времени. Используй ЧЧ:ММ",
-                    reply_markup=get_back_to_menu_keyboard()
+                    reply_markup=get_food_time_keyboard()
                 )
                 return UserState.ADD_REMINDER_TIME
         
@@ -207,10 +202,11 @@ async def add_reminder_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for t in valid_times:
             reminder_data = {
                 'name': f"{name} в {t}",
-                'periodicity': 'daily',
+                'periodicity': context.user_data.get('new_reminder', {}).get('periodicity', 'daily'),
                 'time': t,
                 'active': True,
-                'created_at': datetime.now().isoformat()
+                'created_at': datetime.now().isoformat(),
+                'weekdays': context.user_data.get('new_reminder', {}).get('weekdays', None)
             }
             db.add_reminder(user_id, reminder_data)
         
@@ -259,17 +255,27 @@ async def add_reminder_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         reminder_data = {
             'name': name,
-            'periodicity': 'daily',
+            'periodicity': context.user_data.get('new_reminder', {}).get('periodicity', None),
             'time': time_str,
             'active': True,
-            'created_at': datetime.now().isoformat()
+            'created_at': datetime.now().isoformat(),
+            'weekdays': context.user_data.get('new_reminder', {}).get('weekdays', None)
         }
         
         reminder_id = db.add_reminder(user_id, reminder_data)
         
+        periodicity = reminder_data['periodicity']
+        if periodicity == 'daily':
+            schedule = f"ежедневно в {reminder_data.get('time', '??:??')}"
+        elif periodicity == 'interval':
+            schedule = f"каждые {reminder_data.get('interval', '?')} ч с {reminder_data.get('time', '??:??')}"
+        elif periodicity == 'weekly':
+            days = ', '.join(reminder_data.get('weekdays', []))
+            schedule = f"{days} в {reminder_data.get('time', '??:??')}"
+
         await update.message.reply_text(
             f"✅ Напоминание '{name}' установлено!\n"
-            f"📅 Каждый день в {time_str}",
+            f"📅 {schedule}",
             reply_markup=get_reminders_main_keyboard()
         )
         return UserState.REMINDERS_MENU
@@ -284,14 +290,23 @@ async def add_reminder_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def add_reminder_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Добавление названия напоминания"""
-    if update.message.text == "🔙 Вернуться в меню":
-        await update.message.reply_text("Главное меню:", reply_markup=get_main_menu_keyboard())
-        return UserState.MAIN_MENU
     
+    text = update.message.text
+    
+    if text == MAIN_MENU_BUTTON:
+        return await main_menu(update)
+
+    if text == {BACK_BUTTON}:
+        await update.message.reply_text(
+            "Выбери действие:",
+            reply_markup=get_reminders_main_keyboard()
+        )
+        return UserState.REMINDERS_MENU
+
     context.user_data['new_reminder']['name'] = update.message.text
     
     await update.message.reply_text(
-        "Выбери периодичность:",
+        "Выбери периодичность 👇",
         reply_markup=get_reminder_periodicity_keyboard()
     )
     return UserState.ADD_REMINDER_PERIODICITY
@@ -301,6 +316,17 @@ async def add_reminder_periodicity(update: Update, context: ContextTypes.DEFAULT
     """Выбор периодичности напоминания"""
     text = update.message.text
     
+    if text == MAIN_MENU_BUTTON:
+        return await main_menu(update)
+
+    if text == BACK_BUTTON:
+        await update.message.reply_text(
+            "Выбери действие:",
+            reply_markup=get_reminders_main_keyboard()
+        )
+        return UserState.REMINDERS_MENU
+    
+
     periodicity_map = {
         "Каждый день": "daily",
         "Раз в несколько часов": "interval",
@@ -315,7 +341,7 @@ async def add_reminder_periodicity(update: Update, context: ContextTypes.DEFAULT
             await update.message.reply_text(
                 "В какое время отправлять?\n"
                 "(отправь в формате ЧЧ:ММ, например 14:30)",
-                reply_markup=get_back_to_menu_keyboard()
+                reply_markup=get_food_time_keyboard()
             )
             return UserState.ADD_REMINDER_TIME
         elif text == "Раз в несколько часов":
@@ -348,8 +374,19 @@ async def add_reminder_periodicity(update: Update, context: ContextTypes.DEFAULT
 
 async def add_reminder_interval(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Добавление интервала для напоминания"""
+    interval = update.message.text
+    
+    if interval == MAIN_MENU_BUTTON:
+        return await main_menu(update)
+
+    if interval == BACK_BUTTON:
+        await update.message.reply_text(
+            "Выбери действие:",
+            reply_markup=get_reminders_main_keyboard()
+        )
+        return UserState.REMINDERS_MENU
     try:
-        interval = int(update.message.text)
+        interval = int(interval)
         if interval < 1 or interval > 24:
             raise ValueError
         
@@ -370,8 +407,18 @@ async def add_reminder_interval(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def add_reminder_start_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Добавление времени старта для интервального напоминания"""
+    time_str = update.message.text
+    
+    if time_str == MAIN_MENU_BUTTON:
+        return await main_menu(update)
+
+    if time_str == BACK_BUTTON:
+        await update.message.reply_text(
+            "Выбери действие:",
+            reply_markup=get_reminders_main_keyboard()
+        )
+        return UserState.REMINDERS_MENU
     try:
-        time_str = update.message.text
         datetime.strptime(time_str, "%H:%M")
         
         context.user_data['new_reminder']['time'] = time_str
@@ -408,9 +455,10 @@ async def handle_weekday_callback(update: Update, context: ContextTypes.DEFAULT_
                 "❌ Выбери хотя бы один день недели!",
                 reply_markup=get_weekdays_inline()
             )
-            return
+            return UserState.ADD_REMINDER_WEEKDAYS
         
         context.user_data['new_reminder']['weekdays'] = weekdays
+        context.user_data['selected_weekdays'] = []
         await query.edit_message_text(
             "В какое время отправлять? (ЧЧ:ММ):",
             reply_markup=None
@@ -430,6 +478,7 @@ async def handle_weekday_callback(update: Update, context: ContextTypes.DEFAULT_
             selected.remove(day)
         else:
             selected.append(day)
+            print(selected)
         
         context.user_data['selected_weekdays'] = selected
         
@@ -441,6 +490,17 @@ async def handle_weekday_callback(update: Update, context: ContextTypes.DEFAULT_
 
 async def add_reminder_datetime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Добавление даты и времени для одноразового напоминания"""
+    datetime_str = update.message.text
+    
+    if datetime_str == MAIN_MENU_BUTTON:
+        return await main_menu(update)
+
+    if datetime_str == BACK_BUTTON:
+        await update.message.reply_text(
+            "Выбери действие:",
+            reply_markup=get_reminders_main_keyboard()
+        )
+        return UserState.REMINDERS_MENU
     try:
         datetime_str = update.message.text
         reminder_dt = datetime.strptime(datetime_str, "%d.%m.%Y %H:%M")
@@ -489,7 +549,7 @@ async def show_my_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     for i, reminder in enumerate(reminders, 1):
         name = reminder.get('name', 'Без названия')
-        periodicity = reminder.get('periodicity', 'unknown')
+        periodicity = reminder.get('periodicity', 'daily')
         
         if periodicity == 'daily':
             schedule = f"ежедневно в {reminder.get('time', '??:??')}"
@@ -506,7 +566,7 @@ async def show_my_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         text += f"{i}. {name} ({schedule})\n"
     
-    text += "\nВыбери напоминание для управления:"
+    #text += "\nВыбери напоминание для управления:"
     
     keyboard = []
     for i, reminder in enumerate(reminders, 1):
@@ -515,11 +575,11 @@ async def show_my_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
             callback_data=f"reminder_select_{reminder['id']}"
         )])
     
-    keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_reminders_menu")])
+    keyboard.append([InlineKeyboardButton(BACK_BUTTON, callback_data="back_to_reminders_menu")])
     
     await update.message.reply_text(
         text,
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=None #InlineKeyboardMarkup(keyboard)
     )
 
 
@@ -535,7 +595,7 @@ async def handle_reminder_callback(update: Update, context: ContextTypes.DEFAULT
         reminder_id = int(data.split('_')[2])
         reminder = None
         
-        data_db = db._load_data()
+        data_db = db.get_user(user_id)
         if 'reminders' in data_db and str(user_id) in data_db['reminders']:
             reminder = data_db['reminders'][str(user_id)].get(str(reminder_id))
         
@@ -599,7 +659,7 @@ async def handle_reminder_callback(update: Update, context: ContextTypes.DEFAULT
             [InlineKeyboardButton("📝 Название", callback_data=f"edit_name_{reminder_id}")],
             [InlineKeyboardButton("⏱️ Периодичность", callback_data=f"edit_period_{reminder_id}")],
             [InlineKeyboardButton("⏰ Время", callback_data=f"edit_time_{reminder_id}")],
-            [InlineKeyboardButton("🔙 Назад", callback_data=f"back_to_reminder_{reminder_id}")]
+            [InlineKeyboardButton(BACK_BUTTON, callback_data=f"back_to_reminder_{reminder_id}")]
         ]
         
         await query.edit_message_text(
@@ -647,7 +707,7 @@ async def handle_reminder_callback(update: Update, context: ContextTypes.DEFAULT
     
     elif data.startswith("back_to_reminder_"):
         reminder_id = int(data.split('_')[3])
-        data_db = db._load_data()
+        data_db = db.get_user(user_id)
         if 'reminders' in data_db and str(user_id) in data_db['reminders']:
             reminder = data_db['reminders'][str(user_id)].get(str(reminder_id))
             if reminder:
@@ -661,15 +721,14 @@ async def handle_reminder_callback(update: Update, context: ContextTypes.DEFAULT
                 )
     
     elif data == "back_to_reminders_menu":
-        await query.edit_message_text(
-            "⏰ УПРАВЛЕНИЕ НАПОМИНАНИЯМИ",
-            reply_markup=None
-        )
         await query.message.reply_text(
+            "⏰ УПРАВЛЕНИЕ НАПОМИНАНИЯМИ\n\n"
             "Выбери действие:",
             reply_markup=get_reminders_main_keyboard()
         )
+        return UserState.REMINDERS_MENU
 
+# ==================== Функции без проверки полученного сообщения
 
 async def disable_all_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Отключение всех напоминаний"""
@@ -684,7 +743,6 @@ async def disable_all_reminders(update: Update, context: ContextTypes.DEFAULT_TY
         reply_markup=get_reminders_main_keyboard()
     )
 
-
 async def test_reminder_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Тестовая команда для проверки напоминалок"""
     await update.message.reply_text(
@@ -694,7 +752,6 @@ async def test_reminder_command(update: Update, context: ContextTypes.DEFAULT_TY
         "Текущее время: " + datetime.now().strftime("%H:%M:%S"),
         reply_markup=get_reminders_main_keyboard()
     )
-
 
 async def reminder_check(context: ContextTypes.DEFAULT_TYPE):
     """
@@ -730,21 +787,23 @@ async def send_reminder(bot, user_id: int, reminder: dict):
     else:
         # Стандартные шаблоны для обычных напоминаний
         if "💧" in name or "вода" in name.lower():
-            text = "💧 ПОРА ПИТЬ ВОДУ!\nНапоминаю тебе выпить стакан воды 💧"
+            text = "🥤 Пора выпить воды!\nУ тебя всё получится💙"
         elif "🍎" in name or "есть" in name.lower():
-            text = "🍎 ВРЕМЯ ПОЕСТЬ!\nНе забывай о правильном питании 🍎"
+            text = "🍎 Пора поесть!\nНе забывай о правильном питании 🍎"
         elif "🏋️" in name or "тренировка" in name.lower():
-            text = "🏋️ ВРЕМЯ ТРЕНИРОВКИ!\nПора заняться собой 💪"
+            text = "🏋️ Время тренировки!\nПора заняться собой 💪"
         elif "💊" in name or "витамины" in name.lower():
-            text = "💊 НАПОМИНАНИЕ!\nПрими витамины 💊"
+            text = "💊 Напоминание, Прими витамины!"
+        elif "спать" in name.lower():
+            text = "🌙 Пора спать.\nЗавтра нужно много сил для хорошего дня!"
         else:
-            text = f"⏰ НАПОМИНАНИЕ!\n{name}"
+            text = f"⏰ Напоминание\n{name}"
     
     try:
         await bot.send_message(
             chat_id=user_id,
             text=text,
-            reply_markup=get_main_menu_keyboard()
+            reply_markup=None
         )
         print(f"✅ Напоминание отправлено пользователю {user_id}: {name}")
     except Exception as e:
@@ -754,7 +813,6 @@ async def send_reminder(bot, user_id: int, reminder: dict):
             log_type='reminder'
         )
         print(f"❌ERROR: Ошибка отправки напоминания: {e}")
-
 
 async def setup_reminder_jobs(application):
     """Настройка периодических задач для напоминаний"""

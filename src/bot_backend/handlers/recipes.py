@@ -7,7 +7,7 @@ from telegram.ext import ContextTypes
 
 # ИСПРАВЛЕНО: убрал ai_planner_bot.
 from bot_backend.states import UserState, UserData
-from bot_backend.keyboards import get_back_to_menu_keyboard, get_main_menu_keyboard, get_recipe_actions_inline, MAIN_MENU_BUTTON
+from bot_backend.keyboards import get_back_to_menu_keyboard, get_main_menu_keyboard, get_recipe_actions_inline, MAIN_MENU_BUTTON, get_recipes_main_keyboard
 from database import db
 
 from bot_backend.logger import default_logger as logger
@@ -18,15 +18,7 @@ async def handle_recipes_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(
         "🍳 МОИ РЕЦЕПТЫ\n\n"
         "Выбери категорию по времени приготовления:",
-        reply_markup=ReplyKeyboardMarkup([
-            [KeyboardButton("🥚 Быстрые (до 30 мин)")],
-            [KeyboardButton("⏲️ Средние (30-60 мин)")],
-            [KeyboardButton("🔥 Сложные (более 1 часа)")],
-            [KeyboardButton("📚 Все рецепты")],
-            [KeyboardButton("➕ Добавить рецепт")],
-            [KeyboardButton("🔍 Поиск")],
-            [KeyboardButton(MAIN_MENU_BUTTON)]
-        ], resize_keyboard=True)
+        reply_markup=get_recipes_main_keyboard()
     )
     return UserState.RECIPES_MENU
 
@@ -36,46 +28,49 @@ async def handle_recipes_navigation(update: Update, context: ContextTypes.DEFAUL
     text = update.message.text
     user_id = update.effective_user.id
     
-    if text == "🥚 Быстрые (до 30 мин)":
-        await update.message.reply_text(
-            "🥚 БЫСТРЫЕ РЕЦЕПТЫ (до 30 мин)\n\n"
-            "Теперь выбери ценовую категорию:",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("💚 Бюджетные", callback_data="price_budget_fast")],
-                [InlineKeyboardButton("💛 Средние", callback_data="price_medium_fast")],
-                [InlineKeyboardButton("❤️ Дорогие", callback_data="price_expensive_fast")],
-                [InlineKeyboardButton("🎲 Все быстрые", callback_data="price_all_fast")],
-                [InlineKeyboardButton("🔙 Назад", callback_data="back_to_recipes_time")]
-            ])
-        )
+    if text == "🥪 Быстрые":
+        time_category = 'fast'
+        price_category='all'
+        recipes = db.filter_recipes(user_id, time_category=time_category, price_category=price_category)
+
+        if not recipes:
+            await update.message.reply_text(
+                f"❌ Рецепты не найдены в этой категории.\nПопробуй другие фильтры.",
+                reply_markup=None
+            )
+        else:
+            await show_recipes_list(update, context, recipes, f"{time_category}_{price_category}")
+
         return UserState.RECIPES_MENU
     
-    elif text == "⏲️ Средние (30-60 мин)":
-        await update.message.reply_text(
-            "⏲️ СРЕДНИЕ РЕЦЕПТЫ (30-60 мин)\n\n"
-            "Теперь выбери ценовую категорию:",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("💚 Бюджетные", callback_data="price_budget_medium")],
-                [InlineKeyboardButton("💛 Средние", callback_data="price_medium_medium")],
-                [InlineKeyboardButton("❤️ Дорогие", callback_data="price_expensive_medium")],
-                [InlineKeyboardButton("🎲 Все средние", callback_data="price_all_medium")],
-                [InlineKeyboardButton("🔙 Назад", callback_data="back_to_recipes_time")]
-            ])
-        )
+    elif text == "🍛 Средние":
+        time_category = 'medium'
+        price_category='all'
+        recipes = db.filter_recipes(user_id, time_category=time_category, price_category=price_category)
+
+        if not recipes:
+            await update.message.reply_text(
+                f"❌ Рецепты не найдены в этой категории.\nПопробуй другие фильтры.",
+                reply_markup=None
+            )
+        else:
+            await show_recipes_list(update, context, recipes, f"{time_category}_{price_category}")
+
         return UserState.RECIPES_MENU
     
-    elif text == "🔥 Сложные (более 1 часа)":
-        await update.message.reply_text(
-            "🔥 СЛОЖНЫЕ РЕЦЕПТЫ (более 1 часа)\n\n"
-            "Теперь выбери ценовую категорию:",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("💚 Бюджетные", callback_data="price_budget_hard")],
-                [InlineKeyboardButton("💛 Средние", callback_data="price_medium_hard")],
-                [InlineKeyboardButton("❤️ Дорогие", callback_data="price_expensive_hard")],
-                [InlineKeyboardButton("🎲 Все сложные", callback_data="price_all_hard")],
-                [InlineKeyboardButton("🔙 Назад", callback_data="back_to_recipes_time")]
-            ])
-        )
+    elif text == "🔥 Сложные":
+        time_category = 'hard'
+        price_category='all'
+        recipes = db.filter_recipes(user_id, time_category=time_category, price_category=price_category)
+
+        if not recipes:
+            await update.message.reply_text(
+                f"❌ Рецепты не найдены в этой категории.\nПопробуй другие фильтры.",
+                reply_markup=None
+            )
+        else:
+            await show_recipes_list(update, context, recipes, f"{time_category}_{price_category}")
+
         return UserState.RECIPES_MENU
     
     elif text == "📚 Все рецепты":
@@ -83,15 +78,7 @@ async def handle_recipes_navigation(update: Update, context: ContextTypes.DEFAUL
         if not recipes:
             await update.message.reply_text(
                 "📚 У тебя пока нет рецептов. Добавь первый! ➕",
-                reply_markup=ReplyKeyboardMarkup([
-                    [KeyboardButton("🥚 Быстрые (до 30 мин)")],
-                    [KeyboardButton("⏲️ Средние (30-60 мин)")],
-                    [KeyboardButton("🔥 Сложные (более 1 часа)")],
-                    [KeyboardButton("📚 Все рецепты")],
-                    [KeyboardButton("➕ Добавить рецепт")],
-                    [KeyboardButton("🔍 Поиск")],
-                    [KeyboardButton(MAIN_MENU_BUTTON)]
-                ], resize_keyboard=True)
+                reply_markup=get_recipes_main_keyboard()
             )
         else:
             await show_recipes_list(update, context, recipes, "all")
@@ -123,15 +110,7 @@ async def handle_recipes_navigation(update: Update, context: ContextTypes.DEFAUL
     else:
         await update.message.reply_text(
             "Используй кнопки меню 👆",
-            reply_markup=ReplyKeyboardMarkup([
-                [KeyboardButton("🥚 Быстрые (до 30 мин)")],
-                [KeyboardButton("⏲️ Средние (30-60 мин)")],
-                [KeyboardButton("🔥 Сложные (более 1 часа)")],
-                [KeyboardButton("📚 Все рецепты")],
-                [KeyboardButton("➕ Добавить рецепт")],
-                [KeyboardButton("🔍 Поиск")],
-                [KeyboardButton(MAIN_MENU_BUTTON)]
-            ], resize_keyboard=True)
+            reply_markup=get_recipes_main_keyboard()
         )
         return UserState.RECIPES_MENU
 
@@ -148,9 +127,9 @@ async def handle_recipe_callback(update: Update, context: ContextTypes.DEFAULT_T
         parts = data.split('_')
         price_category = parts[1]
         time_category = parts[2]
-        
+
         recipes = db.filter_recipes(user_id, time_category=time_category, price_category=price_category)
-        
+
         if not recipes:
             await query.edit_message_text(
                 f"❌ Рецепты не найдены в этой категории.\nПопробуй другие фильтры.",
@@ -212,15 +191,7 @@ async def handle_recipe_callback(update: Update, context: ContextTypes.DEFAULT_T
         )
         await query.message.reply_text(
             "Выбери категорию:",
-            reply_markup=ReplyKeyboardMarkup([
-                [KeyboardButton("🥚 Быстрые (до 30 мин)")],
-                [KeyboardButton("⏲️ Средние (30-60 мин)")],
-                [KeyboardButton("🔥 Сложные (более 1 часа)")],
-                [KeyboardButton("📚 Все рецепты")],
-                [KeyboardButton("➕ Добавить рецепт")],
-                [KeyboardButton("🔍 Поиск")],
-                [KeyboardButton(MAIN_MENU_BUTTON)]
-            ], resize_keyboard=True)
+            reply_markup=get_recipes_main_keyboard()
         )
     
     elif data == "back_to_recipes_list":
@@ -260,7 +231,7 @@ async def show_recipes_list(update, context, recipes, filter_key, page=0):
             nav_row.append(InlineKeyboardButton("▶️", callback_data=f"recipes_page_{page+1}"))
         keyboard.append(nav_row)
     
-    keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_recipes")])
+    #keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_recipes")])
     
     if hasattr(update, 'edit_message_text'):
         await update.edit_message_text(
@@ -281,21 +252,21 @@ async def show_recipe_card(update, context, recipe, update_message=False):
     multiplier = portions / original_portions
     
     time_emoji = {
-        'fast': '🥚',
-        'medium': '⏲️',
+        'fast': '🥪',
+        'medium': '🍛',
         'hard': '🔥'
     }.get(recipe.get('time_category'), '⏱️')
     
     price_emoji = {
         'budget': '💚',
         'medium': '💛',
-        'expensive': '❤️'
+        'expensive': '💜'
     }.get(recipe.get('price_category'), '💰')
     
     time_text = {
-        'fast': 'Быстрое (до 30 мин)',
-        'medium': 'Среднее (30-60 мин)',
-        'hard': 'Сложное (более 1 часа)'
+        'fast': 'Быстрое',
+        'medium': 'Среднее',
+        'hard': 'Сложное'
     }.get(recipe.get('time_category'), 'Не указано')
     
     price_text = {
@@ -309,7 +280,7 @@ async def show_recipe_card(update, context, recipe, update_message=False):
         f"{time_emoji} Время: {time_text}\n"
         f"{price_emoji} Цена: {price_text}\n"
         f"🏷️ Теги: {', '.join(recipe.get('tags', ['нет']))}\n\n"
-        f"*Ингредиенты (на {portions} порций):*\n"
+        f"*Ингредиенты (на {original_portions} порций):*\n"
     )
     
     for ingredient in recipe.get('ingredients', []):
@@ -362,9 +333,9 @@ async def add_recipe_portions(update: Update, context: ContextTypes.DEFAULT_TYPE
         context.user_data['new_recipe']['portions'] = portions
         
         keyboard = [
-            [KeyboardButton("🥚 Быстрый (до 30 мин)")],
-            [KeyboardButton("⏲️ Средний (30-60 мин)")],
-            [KeyboardButton("🔥 Сложный (более 1 часа)")],
+            [KeyboardButton("🥪 Быстрый")],
+            [KeyboardButton("🍛 Средний")],
+            #[KeyboardButton("🔥 Сложный")],
             [KeyboardButton(MAIN_MENU_BUTTON)]
         ]
         
@@ -386,9 +357,9 @@ async def add_recipe_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     
     time_map = {
-        "🥚 Быстрый (до 30 мин)": "fast",
-        "⏲️ Средний (30-60 мин)": "medium",
-        "🔥 Сложный (более 1 часа)": "hard"
+        "🥪 Быстрый": "fast",
+        "🍛 Средний": "medium",
+        "🔥 Сложный": "hard"
     }
     
     if text in time_map:
@@ -510,15 +481,7 @@ async def add_recipe_steps(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"✅ Рецепт успешно сохранен!\n\n"
         f"Ты можешь найти его в разделе 'Все мои рецепты'",
-        reply_markup=ReplyKeyboardMarkup([
-            [KeyboardButton("🥚 Быстрые (до 30 мин)")],
-            [KeyboardButton("⏲️ Средние (30-60 мин)")],
-            [KeyboardButton("🔥 Сложные (более 1 часа)")],
-            [KeyboardButton("📚 Все рецепты")],
-            [KeyboardButton("➕ Добавить рецепт")],
-            [KeyboardButton("🔍 Поиск")],
-            [KeyboardButton(MAIN_MENU_BUTTON)]
-        ], resize_keyboard=True)
+        reply_markup=get_recipes_main_keyboard()
     )
     
     return UserState.RECIPES_MENU
@@ -538,15 +501,7 @@ async def search_recipe(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not recipes:
         await update.message.reply_text(
             f"❌ Рецепты с названием '{query}' не найдены.\nПопробуй другой запрос.",
-            reply_markup=ReplyKeyboardMarkup([
-                [KeyboardButton("🥚 Быстрые (до 30 мин)")],
-                [KeyboardButton("⏲️ Средние (30-60 мин)")],
-                [KeyboardButton("🔥 Сложные (более 1 часа)")],
-                [KeyboardButton("📚 Все рецепты")],
-                [KeyboardButton("➕ Добавить рецепт")],
-                [KeyboardButton("🔍 Поиск")],
-                [KeyboardButton(MAIN_MENU_BUTTON)]
-            ], resize_keyboard=True)
+            reply_markup=get_recipes_main_keyboard()
         )
     else:
         await show_recipes_list(update, context, recipes, "search")

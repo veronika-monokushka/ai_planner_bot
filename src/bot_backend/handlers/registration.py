@@ -71,43 +71,6 @@ def calculate_daily_calories(
     return max(int(calories), 1200)  # минимум 1200 ккал для здоровья
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /start"""
-    
-    user_id = update.effective_user.id
-    
-    if db.user_exists(user_id):
-        name = db.get_user(user_id).get('name', 'друг')
-        await update.message.reply_text(
-            f"С возвращением, {name}! 👋",
-            reply_markup=get_main_menu_keyboard()
-        )
-        
-        # Добавляем быстрые кнопки действий
-        keyboard = [
-            [InlineKeyboardButton("🥗 Создать план питания", callback_data="quick_create_plan")],
-            [InlineKeyboardButton("📅 Мой план питания", callback_data="quick_show_plan")],
-            [InlineKeyboardButton("⏰ Добавить напоминание", callback_data="quick_add_reminder")],
-            [InlineKeyboardButton("💬 Чат с Ами", callback_data="quick_chat")],
-        ]
-        
-        await update.message.reply_text(
-            "Чем займемся сегодня?",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        return UserState.MAIN_MENU
-    
-    await update.message.reply_text(
-        "👋 Привет! Я твой личный помощник в питании Ами.\n"
-        "Давай настроим твой профиль. Это займет 1 минуту.\n\n"
-        "Как мне тебя называть?",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    
-    UserData.init_registration(context)
-    return UserState.REGISTRATION_NAME
-
-
 async def handle_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработка ввода имени"""
     name = update.message.text.strip()

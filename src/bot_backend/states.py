@@ -3,6 +3,9 @@ from telegram.ext import ContextTypes
 
 class UserState:
     """Класс для хранения состояний пользователя"""
+
+    MAIN_MENU = 0
+
     # Состояния регистрации
     REGISTRATION_START = 1
     REGISTRATION_NAME = 2
@@ -12,13 +15,13 @@ class UserState:
     REGISTRATION_HEIGHT = 6
     REGISTRATION_GOAL = 7
     REGISTRATION_CONFIRM = 8
-    REGISTRATION_ACTIVITY = 15
-    MAIN_MENU = 9
+    REGISTRATION_ACTIVITY = 9
     
     # Состояния для плана питания
-    AWAITING_BUDGET = 10
-    AWAITING_DAYS_COUNT = 14
-    AWAITING_PLAN_GOAL_CHANGE = 11
+    AWAIT_CONFIRM_GENERATION = 10
+    AWAITING_DAYS_COUNT = 11
+    AWAITING_BUDGET = 12
+    AWAITING_PLAN_GOAL_CHANGE = 13
     
     # Состояния для рецептов
     RECIPES_MENU = 20

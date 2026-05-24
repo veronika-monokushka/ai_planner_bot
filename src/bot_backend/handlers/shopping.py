@@ -2,6 +2,7 @@
 
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
+from bot_backend.keyboards import SHOW_PLAN_BUTTON
 
 from bot_backend.states import UserState
 from bot_backend.keyboards import get_shopping_list_keyboard, get_main_menu_keyboard
@@ -23,7 +24,7 @@ async def handle_shopping_list_menu(update: Update, context: ContextTypes.DEFAUL
     
     if not active_plan:
         await update.message.reply_text(
-            "❌ Сначала создайте план питания в разделе 'План на неделю'!",
+            f"Сначала создай план питания в разделе {SHOW_PLAN_BUTTON}",
             reply_markup=get_main_menu_keyboard()
         )
         return UserState.MAIN_MENU

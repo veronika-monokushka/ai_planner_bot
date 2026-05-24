@@ -22,66 +22,24 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from bot_backend.config import BOT_TOKEN
 from bot_backend.states import UserState
-from bot_backend.keyboards import get_main_menu_keyboard, MAIN_MENU_BUTTON, END_CHAT_BUTTON
+from bot_backend.keyboards import MAIN_MENU_BUTTON, END_CHAT_BUTTON
 from database import db
-from bot_backend.handlers.common import handle_agent_chat, handle_quick_actions, main_menu
+from bot_backend.handlers.common import handle_agent_chat, handle_quick_actions, main_menu, start_dialog_with_bot
 
 
-# Импорты из handlers
-from bot_backend.handlers import (
-    start, handle_name, handle_gender, handle_age, handle_weight,
-    handle_height, handle_goal, handle_activity, handle_confirmation,  
-    handle_main_menu,
-    show_profile, edit_profile_menu, handle_edit_profile,
-    edit_name, edit_gender, edit_age, edit_weight, edit_height,
-    edit_goal, recalculate_profile,
-    handle_week_plan, handle_nutrition, handle_create_plan, handle_budget,
-    handle_recipes_menu, handle_recipes_navigation, handle_recipe_callback,
-    add_recipe_name, add_recipe_portions, add_recipe_time, add_recipe_price,
-    add_recipe_tags, add_recipe_ingredients, add_recipe_steps, search_recipe,
-    handle_reminders_menu, handle_reminders_navigation, handle_reminder_callback,
-    add_reminder_name, add_reminder_periodicity, add_reminder_time,
-    add_reminder_interval, add_reminder_start_time, add_reminder_datetime,
-    handle_weekday_callback,
-    setup_weighing, handle_weighing_day, handle_weighing_time, handle_weighing_input,
-    handle_shopping_list_menu,
-    cancel, handle_unknown, test_reminder_command, setup_reminder_jobs, handle_days_count
-)
+from bot_backend.handlers import *
 
-# Настройка логирования
 from bot_backend.logger import default_logger as logger
 
 
-async def auto_start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_new_session(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Автоматический обработчик сообщений от незарегистрированных пользователей.
     Запускает регистрацию без необходимости вводить /start.
     """
-    logger.debug("auto_start_handler запущен")
-
+    logger.debug("start_new_session запущен")
     user_id = update.effective_user.id
-    
-    # ✅ Получаем текущее состояние пользователя
-    current_state = context.user_data.get('conversation')
-    #context.user_data['conversation'] if 'conversation' in context.user_data.keys  else None
-    
-    # ✅ Пропускаем, если пользователь в активном состоянии ConversationHandler
-    active_states = [
-        UserState.AWAITING_DAYS_COUNT,
-        UserState.AWAITING_BUDGET,
-        UserState.REGISTRATION_NAME,
-        UserState.REGISTRATION_GENDER,
-        UserState.ADD_RECIPE_NAME,
-        UserState.ADD_REMINDER_TIME,
-        UserState.CHAT_WITH_AGENT
-        # ... добавьте все состояния, где нужен ввод от пользователя
-    ]
-    
-    if current_state is not None and current_state in active_states:
-        logger.debug(f"Пользователь {user_id} в состоянии {current_state}, пропускаем auto_start_handler")
-        return
 
-    # Проверяем, зарегистрирован ли пользователь
     if not db.user_exists(user_id):
         # Автоматически запускаем регистрацию
         await update.message.reply_text(
@@ -95,8 +53,7 @@ async def auto_start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         UserData.init_registration(context)
         return UserState.REGISTRATION_NAME
     
-    # Если пользователь зарегистрирован, отправляем в главное меню
-    logger.debug("вызываем handle_main_menu из auto_start_handler")
+    logger.debug("вызываем handle_main_menu из start_new_session")
     return await handle_main_menu(update, context)
 
 
@@ -123,17 +80,10 @@ def main():
     
     # Регистрация обработчиков (порядок ВАЖЕН!)
     application.add_handler(CommandHandler('test_reminder', test_reminder_command))
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(MessageHandler(filters.Regex(fr'^{MAIN_MENU_BUTTON}$'), main_menu))
-    application.add_handler(MessageHandler(filters.Regex(fr'^{END_CHAT_BUTTON}$'), handle_agent_chat))
-
-    application.add_handler(CallbackQueryHandler(handle_recipe_callback, pattern="^(price_|time_|recipe_|increase_|decrease_|add_to_|recipes_page_|back_to_)"))
-    application.add_handler(CallbackQueryHandler(handle_weekday_callback, pattern="^weekday_"))
-    application.add_handler(CallbackQueryHandler(handle_reminder_callback, pattern="^(reminder_|pause_|back_to_reminder_)"))
-    application.add_handler(CallbackQueryHandler(handle_quick_actions, pattern="^(quick_)"))
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+        entry_points=[CommandHandler('start', start),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, start_new_session)],
         states={
             # Регистрация
             UserState.REGISTRATION_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_name)],
@@ -157,14 +107,10 @@ def main():
             UserState.EDIT_HEIGHT: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_height)],
             UserState.EDIT_GOAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_goal)],
             
-            # Питание
-            UserState.AWAITING_DAYS_COUNT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_days_count)
-            ],
-
-            UserState.AWAITING_BUDGET: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_budget)
-            ],
+            # Создание меню
+            UserState.AWAIT_CONFIRM_GENERATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_confirm_generation_plan)],
+            UserState.AWAITING_DAYS_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_days_count)],
+            UserState.AWAITING_BUDGET: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_budget)],
             
             # Рецепты
             UserState.RECIPES_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_recipes_navigation)],
@@ -200,16 +146,16 @@ def main():
         fallbacks=[
             CommandHandler('cancel', cancel),
             CommandHandler('start', start),
-            MessageHandler(filters.Regex(fr'^{MAIN_MENU_BUTTON}$'), handle_main_menu)
+            CallbackQueryHandler(handle_quick_actions, pattern="^(quick_)"),
+            CallbackQueryHandler(handle_recipe_callback, pattern="^(price_|time_|recipe_|increase_|decrease_|add_to_|recipes_page_|back_to_)"),
+            CallbackQueryHandler(handle_weekday_callback, pattern="^weekday_"),
+            CallbackQueryHandler(handle_reminder_callback, pattern="^(reminder_|pause_|back_to_reminder_)"),
+            MessageHandler(filters.COMMAND, handle_unknown)
         ],
     )
-    
-    
     application.add_handler(conv_handler)
-    application.add_handler(MessageHandler(filters.COMMAND, handle_unknown))
 
-    # ✅ Главный обработчик для ВСЕХ текстовых сообщений (должен быть ПОСЛЕДНИМ!)
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_start_handler))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, start_dialog_with_bot))
     
     print("🤖 Бот запущен...")
     print("✅ Автоматическая регистрация включена (можно не писать /start)")
@@ -218,7 +164,7 @@ def main():
     application.run_polling(
         drop_pending_updates=True,
         poll_interval=1.0,
-        timeout=30
+        timeout=60
     )
 
 

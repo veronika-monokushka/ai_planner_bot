@@ -284,6 +284,9 @@ class AgentWithMemory:
         elif response.startswith("```"):
             response = response.replace("```", "").strip()
         
+        # ✅ Удаляем ** (жирный текст в markdown)
+        response = response.replace("**", "")
+        
         start = response.find("{")
         end = response.rfind("}")
         

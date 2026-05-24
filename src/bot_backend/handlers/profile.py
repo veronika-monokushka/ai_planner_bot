@@ -30,10 +30,11 @@ async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     first_weight = weight_history[0]['weight'] if weight_history else last_weight
     total_change = last_weight - first_weight
     
+    pol = '👩' if user_data.get('gender') == 'Ж' else '🧑'
     profile_text = (
         f"📊 ТВОЙ ПРОФИЛЬ\n\n"
         f"👤 Имя: {user_data.get('name', 'Не указано')}\n"
-        f"⚥ Пол: {user_data.get('gender', 'Не указан')}\n"
+        f"{pol} Пол: {user_data.get('gender', 'Не указан')}\n"
         f"📅 Возраст: {user_data.get('age', '?')} лет\n"
         f"⚖️ Вес: {user_data.get('weight', '?')} кг\n"
         f"📏 Рост: {user_data.get('height', '?')} см\n"
@@ -88,7 +89,7 @@ async def handle_edit_profile(update: Update, context: ContextTypes.DEFAULT_TYPE
         return UserState.MAIN_MENU
     else:
         await update.message.reply_text(
-            "Пожалуйста, используй кнопки меню", 
+            "Пожалуйста, используй кнопки меню 👇", 
             reply_markup=get_edit_profile_keyboard()
         )
         return UserState.EDIT_PROFILE_MENU

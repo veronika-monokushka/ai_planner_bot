@@ -1,7 +1,7 @@
 """Пакет обработчиков команд бота"""
 
 from .registration import (
-    start, handle_name, handle_gender, handle_age, handle_weight,
+    handle_name, handle_gender, handle_age, handle_weight,
     handle_height, handle_goal, handle_confirmation, handle_activity
 )
 
@@ -12,8 +12,8 @@ from .profile import (
 )
 
 from .nutrition import (
-    handle_week_plan, handle_nutrition, handle_create_plan, handle_budget,
-    handle_nutrition_callback, handle_week_plan_callback, handle_days_count
+    handle_plan_generation, handle_nutrition, handle_create_plan, handle_budget,
+    handle_nutrition_callback, handle_plan_generation_callback, handle_days_count, handle_confirm_generation_plan
 )
 
 from .recipes import (
@@ -39,7 +39,7 @@ from .shopping import (
 )
 
 from .common import (
-    handle_main_menu, recalculate_profile, cancel, handle_unknown
+    handle_main_menu, recalculate_profile, cancel, handle_unknown, start
 )
 
 __all__ = [
@@ -48,8 +48,8 @@ __all__ = [
     'show_profile', 'edit_profile_menu', 'handle_edit_profile',
     'edit_name', 'edit_gender', 'edit_age', 'edit_weight', 'edit_height',
     'edit_goal',
-    'handle_week_plan', 'handle_nutrition', 'handle_create_plan', 'handle_budget',
-    'handle_nutrition_callback', 'handle_week_plan_callback',
+    'handle_plan_generation', 'handle_nutrition', 'handle_create_plan', 'handle_budget',
+    'handle_nutrition_callback', 'handle_plan_generation_callback',
     'handle_recipes_menu', 'handle_recipes_navigation', 'handle_recipe_callback',
     'add_recipe_name', 'add_recipe_portions', 'add_recipe_time', 'add_recipe_price',
     'add_recipe_tags', 'add_recipe_ingredients', 'add_recipe_steps', 'search_recipe',
@@ -59,6 +59,6 @@ __all__ = [
     'handle_weekday_callback', 'test_reminder_command', 'setup_reminder_jobs',
     'handle_reminders_menu_callback',
     'setup_weighing', 'handle_weighing_day', 'handle_weighing_time', 'handle_weighing_input',
-    'handle_shopping_list_menu', 'handle_shopping_list_actions',
-    'handle_main_menu', 'recalculate_profile', 'cancel', 'handle_unknown', 'handle_days_count'
+    'handle_shopping_list_menu', 'handle_confirm_generation_plan',
+    'handle_main_menu', 'recalculate_profile', 'cancel', 'handle_unknown', 'handle_days_count', 'handle_activity'
 ]
