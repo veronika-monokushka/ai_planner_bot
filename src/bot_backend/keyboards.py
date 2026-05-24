@@ -200,6 +200,7 @@ def get_reminders_main_keyboard():
         #[KeyboardButton("💊 Принять витамины")],
         #[KeyboardButton("🛏️ Проснуться")],
         [KeyboardButton("🌙 Лечь спать")],
+        [KeyboardButton("✨ Мотивация")],
         [KeyboardButton("➕ Создать своё")],
         [KeyboardButton("📋 Мои напоминания")],
         [KeyboardButton("❌ Отключить все")],
@@ -214,6 +215,16 @@ def get_reminder_periodicity_keyboard():
         [KeyboardButton("Раз в несколько часов")],
         [KeyboardButton("По дням недели")],
         [KeyboardButton("Один раз")],
+        [KeyboardButton(BACK_BUTTON)]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_motivation_topic_keyboard():
+    """Клавиатура выбора темы мотивации"""
+    keyboard = [
+        [KeyboardButton("🥗 Здоровое питание")],
+        [KeyboardButton("💪 Тренировки")],
+        [KeyboardButton("✍️ Своя тема")],
         [KeyboardButton(BACK_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -321,7 +332,6 @@ def get_agent_chat_keyboard():
         [KeyboardButton(END_CHAT_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
 
 
 def get_nutrition_menu_keyboard():

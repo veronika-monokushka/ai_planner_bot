@@ -47,10 +47,14 @@ class UserState:
     REMINDER_ACTION = 38
     REMINDER_PAUSE = 39
     
+    # Состояния для мотивационных напоминаний
+    ADD_MOTIVATION_REMINDER = 40
+    ADD_MOTIVATION_TOPIC = 41
+    
     # Состояния для взвешивания
-    WEIGHING_SETUP_DAY = 40
-    WEIGHING_SETUP_TIME = 41
-    WEIGHING_INPUT = 42
+    WEIGHING_SETUP_DAY = 42
+    WEIGHING_SETUP_TIME = 43
+    WEIGHING_INPUT = 44
     
     # Состояния для редактирования профиля
     EDIT_PROFILE_MENU = 50
@@ -63,6 +67,7 @@ class UserState:
     
     # Состояние для списка покупок
     SHOPPING_LIST_MENU = 60
+    
     # Общение с агентом
     CHAT_WITH_AGENT = 70
 

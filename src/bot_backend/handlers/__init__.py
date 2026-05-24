@@ -27,7 +27,7 @@ from .reminders import (
     add_reminder_name, add_reminder_periodicity, add_reminder_time,
     add_reminder_interval, add_reminder_start_time, add_reminder_datetime,
     handle_weekday_callback, test_reminder_command, setup_reminder_jobs,
-    handle_reminders_menu_callback
+    handle_reminders_menu_callback, handle_motivation_reminder, handle_motivation_topic
 )
 
 from .weighing import (
@@ -57,7 +57,7 @@ __all__ = [
     'add_reminder_name', 'add_reminder_periodicity', 'add_reminder_time',
     'add_reminder_interval', 'add_reminder_start_time', 'add_reminder_datetime',
     'handle_weekday_callback', 'test_reminder_command', 'setup_reminder_jobs',
-    'handle_reminders_menu_callback',
+    'handle_reminders_menu_callback', 'handle_motivation_reminder', 'handle_motivation_topic',
     'setup_weighing', 'handle_weighing_day', 'handle_weighing_time', 'handle_weighing_input',
     'handle_shopping_list_menu', 'handle_confirm_generation_plan',
     'handle_main_menu', 'recalculate_profile', 'cancel', 'handle_unknown', 'handle_days_count', 'handle_activity'

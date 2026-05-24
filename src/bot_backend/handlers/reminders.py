@@ -10,7 +10,8 @@ from bot_backend.states import UserState, UserData
 from bot_backend.keyboards import (
     get_back_to_menu_keyboard, get_main_menu_keyboard, get_reminders_main_keyboard,
     get_reminder_periodicity_keyboard, get_weekdays_inline, get_reminder_actions_inline,
-    get_pause_options_inline, MAIN_MENU_BUTTON, get_food_time_keyboard, BACK_BUTTON
+    get_pause_options_inline, MAIN_MENU_BUTTON, get_food_time_keyboard, BACK_BUTTON,
+    get_motivation_topic_keyboard
 )
 from ai_agent.meals_generator import custom_ai_reminder
 from database import db
@@ -125,6 +126,9 @@ async def handle_reminders_navigation(update: Update, context: ContextTypes.DEFA
         )
         context.user_data['reminder_type'] = 'sleep'
         return UserState.ADD_REMINDER_TIME
+    
+    elif text == "✨ Мотивация":
+        return await handle_motivation_reminder(update, context)
     
     elif text == "➕ Создать своё":
         UserData.init_reminder(context)
@@ -813,6 +817,80 @@ async def send_reminder(bot, user_id: int, reminder: dict):
             log_type='reminder'
         )
         print(f"❌ERROR: Ошибка отправки напоминания: {e}")
+
+async def handle_motivation_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка выбора мотивационного напоминания"""
+    await update.message.reply_text(
+        "✨ МОТИВАЦИОННОЕ НАПОМИНАНИЕ\n\n"
+        "Ами будет присылать тебе персональные мотивирующие сообщения! 💪\n\n"
+        "Выбери тему мотивации:",
+        reply_markup=get_motivation_topic_keyboard()
+    )
+    return UserState.ADD_MOTIVATION_TOPIC
+
+async def handle_motivation_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка выбора темы мотивации"""
+    text = update.message.text
+    user_id = update.effective_user.id
+    
+    if text == MAIN_MENU_BUTTON:
+        return await main_menu(update)
+    
+    if text == BACK_BUTTON:
+        return await handle_reminders_menu(update, context)
+    
+    motivation_topic = None
+    motivation_name = None
+    
+    if text == "🥗 Здоровое питание":
+        motivation_topic = "healthy_eating"
+        motivation_name = "🥗 Здоровое питание"
+    elif text == "💪 Тренировки":
+        motivation_topic = "workouts"
+        motivation_name = "💪 Тренировки"
+    elif text == "✍️ Своя тема":
+        # Запрашиваем пользовательскую тему
+        await update.message.reply_text(
+            "✨ СВОЯ ТЕМА\n\n"
+            "Напиши тему мотивации (например: 'Саморазвитие', 'Уверенность в себе'):",
+            reply_markup=get_back_to_menu_keyboard()
+        )
+        context.user_data['motivation_custom'] = True
+        return UserState.ADD_MOTIVATION_TOPIC
+    else:
+        # Пользователь ввел свою тему
+        if context.user_data.get('motivation_custom'):
+            motivation_topic = "custom"
+            motivation_name = text
+            context.user_data['motivation_custom'] = False
+        else:
+            await update.message.reply_text(
+                "❌ Выбери один из вариантов или напиши свою тему",
+                reply_markup=get_motivation_topic_keyboard()
+            )
+            return UserState.ADD_MOTIVATION_TOPIC
+    
+    # Создаём напоминание с от_ai = True
+    reminder_data = {
+        'name': f"✨ Мотивация: {motivation_name}",
+        'periodicity': 'daily',
+        'time': '10:00',  # Время по умолчанию
+        'active': True,
+        'motivation_topic': motivation_topic,
+        'created_at': datetime.now().isoformat(),
+        'from_ai': True
+    }
+    
+    reminder_id = db.add_reminder(user_id, reminder_data)
+    
+    await update.message.reply_text(
+        f"📝 Тема: {motivation_name}\n"
+        f"⏰ Время: 10:00 каждый день\n\n"
+        f"🌺 Ами будет присылать тебе сообщения по теме!",
+        reply_markup=get_reminders_main_keyboard()
+    )
+    
+    return UserState.REMINDERS_MENU
 
 async def setup_reminder_jobs(application):
     """Настройка периодических задач для напоминаний"""

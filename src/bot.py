@@ -132,6 +132,9 @@ def main():
             UserState.ADD_REMINDER_START_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_reminder_start_time)],
             UserState.ADD_REMINDER_DATETIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_reminder_datetime)],
             
+            # Мотивационные напоминания
+            UserState.ADD_MOTIVATION_TOPIC: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_motivation_topic)],
+            
             # Взвешивание
             UserState.WEIGHING_SETUP_DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_weighing_day)],
             UserState.WEIGHING_SETUP_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_weighing_time)],

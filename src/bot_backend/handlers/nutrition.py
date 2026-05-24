@@ -329,7 +329,7 @@ async def create_meal_plan(
         return await main_menu(update)
 
     loading_message = await update.message.reply_text(
-        "🤖 AI составляет ваш план питания...\n"
+        "Составляю меню...\n"
         "Это займет немного времени!",
         reply_markup=None
     )
