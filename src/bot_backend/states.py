@@ -22,6 +22,8 @@ class UserState:
     AWAITING_DAYS_COUNT = 11
     AWAITING_BUDGET = 12
     AWAITING_PLAN_GOAL_CHANGE = 13
+    CONFIRM_MEAL_PLAN_CHANGES = 14
+    MODIFY_MEAL_PLAN_INPUT = 15
     
     # Состояния для рецептов
     RECIPES_MENU = 20

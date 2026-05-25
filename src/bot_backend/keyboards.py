@@ -81,8 +81,8 @@ def get_days_keyboard():
     """Клавиатура для выбора количества дней"""
     keyboard = [
         [KeyboardButton("1"), KeyboardButton("2"), KeyboardButton("3")],
-        [KeyboardButton("4"), KeyboardButton("5"), KeyboardButton("6")],
-        [KeyboardButton("7")],
+        #[KeyboardButton("4"), KeyboardButton("5"), KeyboardButton("6")],
+        #[KeyboardButton("7")],
         [KeyboardButton(MAIN_MENU_BUTTON)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
@@ -282,6 +282,14 @@ def get_food_time_keyboard():
         [KeyboardButton("08:00, 13:00, 19:00")],
         [KeyboardButton("09:00, 14:00, 20:00")],
         [KeyboardButton(BACK_BUTTON)]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_confirm_meal_plan_changes_keyboard():
+    """Клавиатура для подтверждения необходимости изменений в плане питания"""
+    keyboard = [
+        [KeyboardButton("✅ Нет, всё нравится")],
+        [KeyboardButton("✏️ Да, хочу изменить")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 

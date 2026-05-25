@@ -79,7 +79,7 @@ def create_meal_plan_ai(
     language: str = "ru"
 ) -> int:
     
-    """Генерирует план питания на неделю через Mistral AI
+    """Генерирует план питания через Mistral AI
     возвращает флаг - 0 сгенрирован, 1 fallback-ответ"""
     
     # Информация о рецептах
@@ -108,7 +108,7 @@ def create_meal_plan_ai(
 Создай план питания на {count_days} день/дней.
 Цель: {goal}
 Калорийность: {daily_calories} ккал/день
-Бюджет на 7 дней: {budget if budget else 'среднии траты'} руб.
+Бюджет: {budget if budget else 'не указано'} руб.
 Язык: {language}
 Рецепты: {'из сохраненных' if use_saved_recipes else 'новые'}
 Предпочтения: {preferences_promt}

@@ -13,7 +13,8 @@ from .profile import (
 
 from .nutrition import (
     handle_plan_generation, handle_nutrition, handle_create_plan, handle_budget,
-    handle_nutrition_callback, handle_plan_generation_callback, handle_days_count, handle_confirm_generation_plan
+    handle_nutrition_callback, handle_plan_generation_callback, handle_days_count, handle_confirm_generation_plan,
+    handle_confirm_meal_plan_changes, handle_modify_meal_plan_input
 )
 
 from .recipes import (
@@ -49,7 +50,7 @@ __all__ = [
     'edit_name', 'edit_gender', 'edit_age', 'edit_weight', 'edit_height',
     'edit_goal',
     'handle_plan_generation', 'handle_nutrition', 'handle_create_plan', 'handle_budget',
-    'handle_nutrition_callback', 'handle_plan_generation_callback',
+    'handle_nutrition_callback', 'handle_plan_generation_callback', 'handle_confirm_meal_plan_changes', 'handle_modify_meal_plan_input',
     'handle_recipes_menu', 'handle_recipes_navigation', 'handle_recipe_callback',
     'add_recipe_name', 'add_recipe_portions', 'add_recipe_time', 'add_recipe_price',
     'add_recipe_tags', 'add_recipe_ingredients', 'add_recipe_steps', 'search_recipe',

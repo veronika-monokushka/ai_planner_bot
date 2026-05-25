@@ -290,7 +290,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         ]
         
         await query.message.reply_text(
-            "С чего начнём?",
+            "Можешь использовать кнопки меню👇 или напрямую попросить меня💬\nС чего начнём?",
             reply_markup=InlineKeyboardMarkup(quick_keyboard)
         )
         

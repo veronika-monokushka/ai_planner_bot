@@ -16,6 +16,7 @@ from bot_backend.keyboards import (
     get_budget_keyboard,
     get_back_to_menu_keyboard,
     get_days_keyboard, get_confirm_generate_list_keyboard,
+    get_confirm_meal_plan_changes_keyboard,
     MAIN_MENU_BUTTON, CREATE_PLAN_BUTTON
 )
 from database import db
@@ -23,6 +24,7 @@ from ai_agent.meals_generator import create_meal_plan_ai
 
 from bot_backend.logger import default_logger as logger
 
+MAX_DAYS_PLAN = 3
 
 def format_meal_plan_text(plan: dict, daily_calories: int = None) -> str:
     """
@@ -73,7 +75,7 @@ async def handle_plan_generation(update: Update, context: ContextTypes.DEFAULT_T
     
     await update.message.reply_text(
         "📅 На сколько дней составить план питания?\n\n"
-        "Введи число от 1 до 7:",
+        f"Введи число от 1 до {MAX_DAYS_PLAN}:",
         reply_markup=get_days_keyboard()
     )
     context.user_data['awaiting_days_count'] = True
@@ -93,7 +95,7 @@ async def handle_plan_generation_callback(query, context: ContextTypes.DEFAULT_T
     # ✅ Спрашиваем количество дней
     await query.message.reply_text(
         "📅 На сколько дней составить план питания?\n\n"
-        "Введи число от 1 до 7:",
+        f"Введи число от 1 до {MAX_DAYS_PLAN}:",
         reply_markup=get_days_keyboard()
     )
     context.user_data['awaiting_days_count'] = True
@@ -204,9 +206,9 @@ async def handle_days_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         count_days = int(text)
         
-        if count_days < 1 or count_days > 7:
+        if count_days < 1 or count_days > MAX_DAYS_PLAN:
             await update.message.reply_text(
-                "❌ Количество дней должно быть от 1 до 7. Попробуй еще раз:",
+                f"❌ Количество дней должно быть от 1 до {MAX_DAYS_PLAN}. Попробуй еще раз:",
                 reply_markup=get_days_keyboard()
             )
             return UserState.AWAITING_DAYS_COUNT
@@ -229,7 +231,7 @@ async def handle_days_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             # Бюджета нет → спрашиваем бюджет
             await update.message.reply_text(
-                "💰 Учтем бюджет на еду?\nВведи сумму в рублях на неделю или нажми 'Пропустить'",
+                "💰 Учтем бюджет на еду?\nВведи сумму в рублях или нажми 'Пропустить'",
                 reply_markup=get_budget_keyboard()
             )
             context.user_data['awaiting_budget'] = True
@@ -237,7 +239,7 @@ async def handle_days_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
     except ValueError:
         await update.message.reply_text(
-            "❌ Пожалуйста, введи число от 1 до 7:",
+            f"❌ Пожалуйста, введи число от 1 до {MAX_DAYS_PLAN}:",
             reply_markup=get_days_keyboard()
         )
         return UserState.AWAITING_DAYS_COUNT
@@ -266,7 +268,7 @@ async def handle_budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Если количество дней не найдено — возвращаемся к запросу дней
     if not count_days:
         await update.message.reply_text(
-            "📅 На сколько дней составить план?\nВведи число от 1 до 7:",
+            f"📅 На сколько дней составить план?\nВведи число от 1 до {MAX_DAYS_PLAN}:",
             reply_markup=get_days_keyboard()
         )
         context.user_data['awaiting_days_count'] = True
@@ -381,12 +383,13 @@ async def create_meal_plan(
     context.user_data.pop('awaiting_days_count', None)
     context.user_data.pop('awaiting_budget', None)
 
+    # Спрашиваем хочет ли пользователь что-то изменить в плане
     await update.message.reply_text(
-        "🛒 Хочешь создать список покупок на основе этого плана?",
-        reply_markup=get_confirm_generate_list_keyboard()
+        "❓ Хочешь ли что-то изменить в этом плане?",
+        reply_markup=get_confirm_meal_plan_changes_keyboard()
     )
 
-    return UserState.MAIN_MENU
+    return UserState.CONFIRM_MEAL_PLAN_CHANGES
 
 
 async def handle_create_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -402,7 +405,7 @@ async def handle_create_plan(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # ✅ Сначала спрашиваем количество дней
         await update.message.reply_text(
             "📅 На сколько дней составить план питания?\n\n"
-            "Введи число от 1 до 7:",
+            f"Введи число от 1 до {MAX_DAYS_PLAN}:",
             reply_markup=get_days_keyboard()
         )
         context.user_data['awaiting_days_count'] = True
@@ -418,3 +421,106 @@ async def handle_create_plan(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return UserState.MAIN_MENU
 
 
+async def handle_confirm_meal_plan_changes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик ответа о необходимости изменений в плане питания"""
+    text = update.message.text
+    user_id = update.effective_user.id
+    
+    if text == MAIN_MENU_BUTTON:
+        return await main_menu(update)
+    
+    # Если ответ "Нет" - предложить создать список покупок
+    if text == "✅ Нет, всё нравится":
+        await update.message.reply_text(
+            "🛒 Хочешь создать список покупок на основе этого плана?",
+            reply_markup=get_confirm_generate_list_keyboard()
+        )
+        return UserState.AWAIT_CONFIRM_GENERATION
+    
+    # Если ответ "Да" или любой другой текст - перейти в режим модификации плана
+    elif text == "✏️ Да, хочу изменить" or text != "✅ Нет, всё нравится":
+        await update.message.reply_text(
+            "✏️ Отлично! Напиши свои пожелания и я изменю план",
+            reply_markup=get_back_to_menu_keyboard()
+        )
+        return UserState.MODIFY_MEAL_PLAN_INPUT
+    
+    else:
+        await update.message.reply_text(
+            "Пожалуйста, используй кнопки меню 👇",
+            reply_markup=get_confirm_meal_plan_changes_keyboard()
+        )
+        return UserState.CONFIRM_MEAL_PLAN_CHANGES
+
+
+async def handle_modify_meal_plan_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик ввода пожеланий по изменению плана и отправка в агент"""
+    from bot_backend.handlers.common import handle_agent_chat
+    from ai_agent.agent_class import AgentWithMemory
+    from ai_agent.mistral_llm_api import mistral_llm_client
+    from ai_agent.tools import ALL_TOOLS, get_tool_executors
+    from ai_agent.ai_logger import log_error
+    from telegram import KeyboardButton, ReplyKeyboardMarkup
+    
+    text = update.message.text
+    user_id = update.effective_user.id
+    
+    if text == MAIN_MENU_BUTTON:
+        return await main_menu(update)
+    
+    # Получаем последний созданный план из context
+    last_plan = context.user_data.get('last_created_plan', {})
+    plan_dict = last_plan.get('plan', {})
+    
+    # Форматируем план для вставки в промт
+    plan_text = format_meal_plan_text(plan_dict, last_plan.get('user_data', {}).get('daily_calories', None))
+    
+    # Создаём модифицированное сообщение с информацией о плане
+    modified_user_message = f"Я хочу изменить этот план питания:\n\n{plan_text}\n\nМои пожелания:\n{text}"
+    
+    # Получаем или создаем агента для этого пользователя
+    agent_key = f"agent_{user_id}"
+    if agent_key not in context.user_data:
+        agent = AgentWithMemory(mistral_llm_client, user_id=user_id)
+        context.user_data[agent_key] = agent
+    else:
+        agent = context.user_data[agent_key]
+    
+    # Показываем статус "печатает"
+    await update.message.chat.send_action(action="typing")
+    
+    # Отправляем модифицированное сообщение в агент
+    tool_executors = get_tool_executors()
+    
+    result = agent.ask_with_tools(
+        user_message=modified_user_message,
+        tools=ALL_TOOLS,
+        tool_executors=tool_executors,
+        max_tokens=300
+    )
+    
+    # Получаем ответ
+    if result.get("success"):
+        response_text = result.get("response", "Готово!")
+    else:
+        error_text = result.get('error', 'Неизвестная ошибка')
+        log_error(
+            user_id=user_id,
+            error_text=error_text,
+            log_type='general'
+        )
+        
+        if '429' in error_text:
+            response_text = "Превышен лимит запросов в минуту, пожалуйста пишите не так быстро ❄"
+        else:
+            response_text = 'Неизвестная ошибка. Попробуйте пожалуйста снова или введите /start 😇'
+    
+    # Отправляем ответ пользователю
+    from bot_backend.keyboards import get_agent_chat_keyboard
+    await update.message.reply_text(
+        response_text,
+        reply_markup=get_agent_chat_keyboard()
+    )
+    
+    # Переходим в режим чата с агентом
+    return UserState.CHAT_WITH_AGENT

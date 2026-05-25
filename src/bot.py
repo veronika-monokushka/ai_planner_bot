@@ -111,6 +111,8 @@ def main():
             UserState.AWAIT_CONFIRM_GENERATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_confirm_generation_plan)],
             UserState.AWAITING_DAYS_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_days_count)],
             UserState.AWAITING_BUDGET: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_budget)],
+            UserState.CONFIRM_MEAL_PLAN_CHANGES: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_confirm_meal_plan_changes)],
+            UserState.MODIFY_MEAL_PLAN_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_modify_meal_plan_input)],
             
             # Рецепты
             UserState.RECIPES_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_recipes_navigation)],
@@ -165,7 +167,7 @@ def main():
     print("="*40)
     
     application.run_polling(
-        drop_pending_updates=True,
+        drop_pending_updates=False,
         poll_interval=1.0,
         timeout=60
     )

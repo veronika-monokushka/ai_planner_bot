@@ -277,6 +277,7 @@ def generate_meal_plan(
     user_id: int,
     goal: str,
     preferences_promt: str=None,
+    change_old_plan: bool=False,
     count_days: int = 3,
     use_saved_recipes: bool = True,
     daily_calories: int = 2000,
@@ -284,14 +285,15 @@ def generate_meal_plan(
     language: str = "ru"
 ) -> str:
     """
-    Генерирует план питания на основе параметров пользователя через Mistral AI.
-    Сохраняет план в БД.
+    Генерирует план питания, заменяет старый план и сохраняет план в БД.
+    Используется если пользователь просит создать план или внести изменения в старый план.
     
     Args:
         user_id: ID пользователя в Telegram
         goal: Цель питания ("снижение веса", "набор мышечной массы", "здоровое питание")
         preferences_promt: промт для llm с дополнительными пожеланиями пользователя, названные в текущем диалоге (не нужно указывать, те которые записаны в базе данных о пользователе)
         count_days: На сколько дней составить план (от 1 до 7)
+        change_old_plan: true если вносим именения в старый план
         use_saved_recipes: true если пользователь хочет использовать "сохраненные" рецепты, false если хочет попробовать "новые"
         daily_calories: Целевая дневная калорийность в ккал (по умолчанию 2000)
         budget: Бюджет на весь период в рублях (опционально)
@@ -311,6 +313,10 @@ def generate_meal_plan(
         if daily_calories < 800 or daily_calories > 5000:
             return "❌ Дневная калорийность должна быть от 800 до 5000 ккал"
         
+        if change_old_plan:
+            meal_plan_data = db.get_active_meal_plan(user_id)
+            plan_data = meal_plan_data['plan']
+            preferences_promt = f"Я хочу изменить этот план питания:\n\n{plan_data}\n\nМои пожелания:\n{preferences_promt}"
         result = create_meal_plan_ai(user_id, goal, preferences_promt, count_days, use_saved_recipes, daily_calories, budget, language)
 
     except Exception as e:
@@ -324,12 +330,12 @@ def generate_meal_plan(
 
     response = f"✅ План питания создан! \n\n"
     response += f"📅 На {count_days} дн. | 🔥 {daily_calories} ккал/день"
-    response += f"\n\n"
+    response += f"\n"
     
     # Форматируем дни плана
     for day_key in sorted(plan_data.keys(), key=lambda x: int(x.split()[1]) if len(x.split()) > 1 else 0):
         day_plan = plan_data[day_key]
-        response += f"📍 {day_key}:\n"
+        response += f"\n📍 {day_key}:\n"
         
         if isinstance(day_plan, dict):
             for meal_type in ['завтрак', 'обед', 'ужин', 'перекус']:
@@ -410,7 +416,7 @@ def delete_meal_plan(
     user_id: int
 ) -> str:
     """
-    Удаляет текущий план питания пользователя.
+    Удаляет текущий план питания пользователя. НЕ используется если необходимо внести правки в страый план.
     
     Args:
         user_id: ID пользователя в Telegram
@@ -858,15 +864,22 @@ def save_user_preferences(
     preferences: str
 ) -> str:
     """
-    Сохраняет предпочтения и важную информацию о пользователе в БД.
+    Сохраняет предпочтения и важную информацию о пользователе (диеты, ограничения, аллергии, вкусовые предпочтения).
     Эта информация будет использована для персонализации советов и меню.
+
+    Используй этот инструмент, когда:
+    - Пользователь говорит о своих диетических ограничениях или аллергиях
+    - Пользователь рассказывает о том, что ему нравится или не нравится
+    - Пользователь говорит об ограничениях по времени приготовления
+
+    После сохранения предпочтений скажи пользователю, что теперь ты будешь учитывать это при составлении меню.
     
     Args:
         user_id: ID пользователя в Telegram
         preferences: Строка с предпочтениями пользователя (например:
             "Не люблю помидоры, обожаю куриное филе, предпочитаю блюда на гриле,
             аллергия на молочные продукты, вегетарианец, готовит на скорость")
-    
+
     Returns:
         Сообщение о результате сохранения
     """
