@@ -268,6 +268,7 @@ async def add_reminder_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         reminder_id = db.add_reminder(user_id, reminder_data)
         
+        schedule = ""
         periodicity = reminder_data['periodicity']
         if periodicity == 'daily':
             schedule = f"ежедневно в {reminder_data.get('time', '??:??')}"
@@ -276,10 +277,12 @@ async def add_reminder_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif periodicity == 'weekly':
             days = ', '.join(reminder_data.get('weekdays', []))
             schedule = f"{days} в {reminder_data.get('time', '??:??')}"
-
+        
+        text = f"✅ Напоминание '{name}' установлено!"
+        if schedule != "":
+            text+=f"\n📅 {schedule}"
         await update.message.reply_text(
-            f"✅ Напоминание '{name}' установлено!\n"
-            f"📅 {schedule}",
+            text,
             reply_markup=get_reminders_main_keyboard()
         )
         return UserState.REMINDERS_MENU
@@ -881,7 +884,7 @@ async def handle_motivation_topic(update: Update, context: ContextTypes.DEFAULT_
         'from_ai': True
     }
     
-    reminder_id = db.add_reminder(user_id, reminder_data)
+    reminder_id = db.add_reminder(user_id, reminder_data, from_ai=True)
     
     await update.message.reply_text(
         f"📝 Тема: {motivation_name}\n"
@@ -900,3 +903,153 @@ async def setup_reminder_jobs(application):
         print("✅ Планировщик напоминаний запущен (проверка каждую минуту)")
     else:
         print("⚠️ Job queue не доступен, напоминания не будут работать")
+
+
+
+#================================
+
+
+import asyncio
+from datetime import datetime
+from typing import Optional, List
+from telegram import Bot
+from database import db
+from bot_backend.logger import default_logger as logger
+
+
+async def send_all_users_reminder(
+    bot: Bot,
+    text: str,
+    from_ai: bool = True
+) -> dict:
+    """
+    Отправляет напоминание ВСЕМ пользователям бота.
+    
+    Args:
+        bot: Экземпляр Telegram Bot
+        text: Текст напоминания
+        from_ai: Флаг AI-генерации (по умолчанию True)
+    
+    Returns:
+        dict: Статистика отправки
+    """
+    # Получаем всех пользователей из БД
+    all_users = db.users.get_all_users()
+    
+    if not all_users:
+        logger.warning("Нет зарегистрированных пользователей для рассылки")
+        return {"success": False, "sent": 0, "failed": 0, "message": "Нет пользователей"}
+    
+    sent_count = 0
+    failed_count = 0
+    failed_users = []
+    
+    for user_id_str, user_data in all_users.items():
+    #for user_id_str in [6145655451, 8981097934]:
+        user_id = int(user_id_str)
+        
+        try:
+            await bot.send_message(
+                chat_id=user_id,
+                text=text,
+                parse_mode="HTML"
+            )
+            sent_count += 1
+            logger.info(f"✅ Напоминание отправлено пользователю {user_id}")
+            
+            # Сохраняем в историю напоминаний (опционально)
+            reminder_data = {
+                "name": f"Системное: {text[:50]}",
+                "periodicity": "once",
+                "active": False,
+                "from_ai": from_ai,
+                "created_at": datetime.now().isoformat(),
+                "sent_at": datetime.now().isoformat()
+            }
+            db.reminders.add_reminder(user_id, reminder_data)
+            
+        except Exception as e:
+            failed_count += 1
+            failed_users.append(user_id)
+            logger.error(f"❌ Ошибка отправки пользователю {user_id}: {e}")
+    
+    result = {
+        "success": True,
+        "sent": sent_count,
+        "failed": failed_count,
+        "total": sent_count + failed_count,
+        "failed_users": failed_users
+    }
+    
+    logger.info(f"📊 Рассылка завершена: отправлено {sent_count}, ошибок {failed_count}")
+    return result
+
+
+async def send_motivation_to_all(bot: Bot) -> dict:
+    """
+    Отправляет мотивационное сообщение всем пользователям.
+    """
+    text = (
+        "🌟 **Мотивация на сегодня** 🌟\n\n"
+        "Каждый маленький шаг приближает тебя к цели!\n"
+        "Ты справишься! 💪\n\n"
+        "_Продолжай в том же духе!_"
+    )
+    return await send_all_users_reminder(bot, text, from_ai=True)
+
+
+async def send_weekly_report_to_all(bot: Bot) -> dict:
+    """
+    Отправляет еженедельный отчёт всем пользователям.
+    """
+    text = (
+        "📊 Еженедельный отчёт 📊\n\n"
+        "Спасибо, что пользуетесь ботом!\n"
+        "Продолжайте следить за питанием и достигать целей! 🎯\n\n"
+        "Ами 🤗"
+    )
+    return await send_all_users_reminder(bot, text, from_ai=True)
+
+
+# ==================== ДЛЯ ИСПОЛЬЗОВАНИЯ В КОМАНДЕ БОТА ====================
+
+async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Команда для админа: /broadcast Текст сообщения
+    Рассылает сообщение всем пользователям.
+    """
+    # Проверка, что пользователь — админ
+    ADMIN_IDS = [6145655451, 8981097934]  # ID админов
+    
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("❌ У вас нет прав для этой команды.")
+        return UserState.MAIN_MENU
+    
+    # Получаем текст сообщения
+    if not context.args:
+        await update.message.reply_text(
+            "❌ Укажите текст сообщения.\n"
+            "Пример: /broadcast Привет всем!"
+        )
+        return UserState.MAIN_MENU
+    
+    message_text = " ".join(context.args)
+    # Заменяем буквальные \n на реальные переносы строк
+    message_text = message_text.replace("\\n", "\n")
+    
+    # Отправляем подтверждение
+    status_msg = await update.message.reply_text(
+        "📢 Начинаю рассылку..."
+    )
+    
+    # Выполняем рассылку
+    result = await send_all_users_reminder(context.bot, message_text)
+    
+    # Обновляем статус
+    await status_msg.edit_text(
+        f"✅ Рассылка завершена!\n"
+        f"📤 Отправлено: {result['sent']}\n"
+        f"❌ Ошибок: {result['failed']}\n"
+        f"👥 Всего: {result['total']}"
+    )

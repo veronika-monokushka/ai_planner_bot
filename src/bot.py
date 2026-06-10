@@ -151,6 +151,7 @@ def main():
         fallbacks=[
             CommandHandler('cancel', cancel),
             CommandHandler('start', start),
+            CommandHandler('broadcast', admin_broadcast),
             CallbackQueryHandler(handle_quick_actions, pattern="^(quick_)"),
             CallbackQueryHandler(handle_recipe_callback, pattern="^(price_|time_|recipe_|increase_|decrease_|add_to_|recipes_page_|back_to_)"),
             CallbackQueryHandler(handle_weekday_callback, pattern="^weekday_"),

@@ -113,9 +113,9 @@ class Database:
         """Получает напоминания генерируемые динамически LLM"""
         return self.reminders.get_ai_reminders(user_id)
 
-    def add_reminder(self, user_id: int, reminder_data: dict) -> int:
+    def add_reminder(self, user_id: int, reminder_data: dict, from_ai: bool=False) -> int:
         """Добавляет напоминание"""
-        return self.reminders.add_reminder(user_id, reminder_data)
+        return self.reminders.add_reminder(user_id, reminder_data, from_ai=from_ai)
     
     def update_reminder(self, user_id: int, reminder_id: int, **kwargs):
         """Обновляет напоминание"""

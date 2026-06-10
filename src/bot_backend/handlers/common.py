@@ -25,9 +25,10 @@ from bot_backend import AGENT_DESCRIPTION_SHORT
 Ami_text = ("🌺 Чат с Ами.\n"
             #"Теперь ты можешь писать мне и я буду отвечать.\n"
             f"Чтобы выйти из режима, нажми '{END_CHAT_BUTTON}'\n\n"
-            "С чем тебе помочь👩‍🍳")
+            "С чем тебе помочь?")
 
 async def start_dialog_with_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("Запуск start_dialog_with_bot")
     await update.message.reply_text(
         "Для начала диалога введи /start", 
         reply_markup=None
